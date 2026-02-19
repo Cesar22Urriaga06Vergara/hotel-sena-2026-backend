@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -17,7 +18,19 @@ async function bootstrap() {
   // Habilitar CORS (opcional, para desarrollo con frontend)
   app.enableCors();
 
-  await app.listen(3001);
-  console.log('🚀 Servidor corriendo en http://localhost:3000');
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Hotel Sena API')
+    .setDescription('Documentación de la API del proyecto Hotel Sena 2026')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, swaggerDocument);
+
+  const port = 3001;
+  await app.listen(port);
+  console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
+  console.log(`📘 Swagger disponible en http://localhost:${port}/api/docs`);
 }
 bootstrap();
