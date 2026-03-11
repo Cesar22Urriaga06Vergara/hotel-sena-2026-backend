@@ -2,31 +2,31 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserService } from '../../user/user.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    private readonly userService: UserService,
-    private readonly configService: ConfigService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
-    } as any); // <-- Cast a 'any' si el tipado sigue fallando
+      secretOrKey: configService.get<string>('JWT_SECRET') || 'secret',
+    } as any);
   }
 
   async validate(payload: JwtPayload) {
-    const { sub: id } = payload;
-    const user = await this.userService.findOne(id);
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Usuario inactivo');
+    if (!payload.sub || !payload.email || !payload.rol) {
+      throw new UnauthorizedException('Token inválido');
     }
 
-    return user;
+    return {
+      id: payload.sub,
+      sub: payload.sub,
+      email: payload.email,
+      rol: payload.rol,
+      idHotel: payload.idHotel,
+      idCliente: payload.idCliente,
+      idEmpleado: payload.idEmpleado,
+    };
   }
 }
-// ...existing code...

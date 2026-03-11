@@ -5,9 +5,10 @@ import { ReservaController } from './reserva.controller';
 import { Reserva } from './entities/reserva.entity';
 import { Habitacion } from '../habitacion/entities/habitacion.entity';
 import { TipoHabitacion } from '../tipo-habitacion/entities/tipo-habitacion.entity';
+import { Cliente } from '../cliente/entities/cliente.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Reserva, Habitacion, TipoHabitacion])],
+  imports: [TypeOrmModule.forFeature([Reserva, Habitacion, TipoHabitacion, Cliente])],
   controllers: [ReservaController],
   providers: [ReservaService],
   exports: [ReservaService],

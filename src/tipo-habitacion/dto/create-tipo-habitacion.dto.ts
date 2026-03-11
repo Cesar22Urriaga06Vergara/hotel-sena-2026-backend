@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsOptional, IsBoolean, IsArray, IsNotEmpty, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTipoHabitacionDto {
@@ -6,6 +7,7 @@ export class CreateTipoHabitacionDto {
     description: 'ID del hotel al que pertenece el tipo de habitación',
     example: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   idHotel: number;
@@ -31,6 +33,7 @@ export class CreateTipoHabitacionDto {
     example: 2,
     minimum: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   capacidadPersonas: number;
@@ -39,6 +42,7 @@ export class CreateTipoHabitacionDto {
     description: 'Precio base por noche',
     example: 120000,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   precioBase?: number;
@@ -57,6 +61,7 @@ export class CreateTipoHabitacionDto {
     example: [1, 2, 3],
     type: [Number],
   })
+  @Type(() => Number)
   @IsArray()
   @IsNumber({}, { each: true })
   @IsOptional()

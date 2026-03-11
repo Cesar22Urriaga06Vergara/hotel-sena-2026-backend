@@ -1,4 +1,5 @@
 import { IsNumber, IsDateString, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateReservaDto {
@@ -6,6 +7,7 @@ export class CreateReservaDto {
     description: 'ID del cliente que realiza la reserva',
     example: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   idCliente: number;
@@ -14,6 +16,7 @@ export class CreateReservaDto {
     description: 'ID del hotel donde se realiza la reserva',
     example: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   idHotel: number;
@@ -22,6 +25,7 @@ export class CreateReservaDto {
     description: 'ID del tipo de habitación',
     example: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   idTipoHabitacion: number;
@@ -46,10 +50,21 @@ export class CreateReservaDto {
     description: 'Número de huéspedes',
     example: 2,
   })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsNotEmpty()
   numeroHuespedes: number;
+
+  @ApiPropertyOptional({
+    description: 'Origen de la reserva',
+    example: 'web',
+    enum: ['web', 'mostrador', 'telefono'],
+    default: 'web',
+  })
+  @IsString()
+  @IsOptional()
+  origenReserva?: string;
 
   @ApiPropertyOptional({
     description: 'Observaciones adicionales',

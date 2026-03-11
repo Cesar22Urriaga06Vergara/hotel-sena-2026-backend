@@ -3,7 +3,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { AmenidadModule } from './amenidad/amenidad.module';
 import { TipoHabitacionModule } from './tipo-habitacion/tipo-habitacion.module';
@@ -11,6 +10,8 @@ import { HabitacionModule } from './habitacion/habitacion.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ReservaModule } from './reserva/reserva.module';
 import { ClienteModule } from './cliente/cliente.module';
+import { EmpleadoModule } from './empleado/empleado.module';
+import { HotelModule } from './hotel/hotel.module';
 
 @Module({
   imports: [
@@ -38,8 +39,6 @@ import { ClienteModule } from './cliente/cliente.module';
       inject: [ConfigService],
     }),
 
-    UserModule,
-
     AuthModule,
 
     // Módulo de Cloudinary
@@ -47,10 +46,12 @@ import { ClienteModule } from './cliente/cliente.module';
 
     // Módulos de la aplicación
     AmenidadModule,
+    HotelModule,
     TipoHabitacionModule,
     HabitacionModule,
     ReservaModule,
     ClienteModule,
+    EmpleadoModule,
 
   ],
   controllers: [AppController],

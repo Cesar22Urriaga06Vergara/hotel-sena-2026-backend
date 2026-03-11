@@ -11,12 +11,6 @@ export class Cliente {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'id_usuario', nullable: false })
-  idUsuario: number;
-
-  @Column({ nullable: true })
-  tipoDocumento: string;
-
   @Column({ unique: true, nullable: false })
   cedula: string;
 
@@ -26,11 +20,20 @@ export class Cliente {
   @Column({ nullable: false })
   apellido: string;
 
+  @Column({ unique: true, nullable: false })
+  email: string;
+
+  @Column({ select: false, nullable: false })
+  password: string;
+
   @Column({ nullable: true })
   telefono: string;
 
   @Column({ nullable: true })
-  email: string;
+  tipoDocumento: string;
+
+  @Column({ default: 'cliente', nullable: false })
+  rol: string; // Siempre será 'cliente'
 
   @Column({ nullable: true })
   direccion: string;

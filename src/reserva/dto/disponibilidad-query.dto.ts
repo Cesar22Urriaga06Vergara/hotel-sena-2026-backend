@@ -1,4 +1,5 @@
 import { IsDateString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DisponibilidadQueryDto {
@@ -6,6 +7,7 @@ export class DisponibilidadQueryDto {
     description: 'ID del hotel',
     example: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   idHotel: number;
@@ -29,8 +31,7 @@ export class DisponibilidadQueryDto {
   @ApiPropertyOptional({
     description: 'Filtrar por tipo de habitación específico',
     example: 1,
-  })
-  @IsNumber()
+  })  @Type(() => Number)  @IsNumber()
   @IsOptional()
   idTipoHabitacion?: number;
 }

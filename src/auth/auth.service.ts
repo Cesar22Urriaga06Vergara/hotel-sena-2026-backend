@@ -1,8 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UserService } from '../user/user.service';
 import { ClienteService } from '../cliente/cliente.service';
+import { EmpleadoService } from '../empleado/empleado.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
@@ -10,142 +10,296 @@ import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UserService,
     private readonly clienteService: ClienteService,
+    private readonly empleadoService: EmpleadoService,
     private readonly jwtService: JwtService,
   ) {}
 
   /**
-   * Registrar un nuevo usuario
-   * Crea el usuario y retorna un token JWT
+   * Registrar un nuevo cliente
+   * RESTRICCIÓN: Este endpoint SOLO crea clientes
+   * - El rol siempre es 'cliente'
+   * - Los empleados se crean únicamente por el admin mediante POST /empleados
    */
   async register(registerDto: RegisterDto) {
-    // Crear el usuario usando el servicio de usuarios
-    let user = await this.userService.create(registerDto);
+    try {
+      const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Si es cliente, crear automáticamente un registro en la tabla de clientes
-    if (user.role === 'cliente') {
       const cliente = await this.clienteService.create({
-        idUsuario: user.id,
-        cedula: `TEMP_${user.id}`, // Temporal, puede ser actualizado luego
-        nombre: user.fullName || 'Cliente',
-        apellido: '',
-        email: user.email,
+        nombre: registerDto.nombre,
+        apellido: registerDto.apellido,
+        email: registerDto.email,
+        password: hashedPassword,
+        rol: 'cliente', // Asegurar que el rol siempre es 'cliente'
       });
 
-      // Actualizar el usuario con el idCliente
-      user.idCliente = cliente.id;
-      user = await this.userService.update(user.id, { idCliente: cliente.id } as any);
+      const token = this.generateToken(cliente.id, cliente.email, 'cliente', undefined, cliente.id);
+
+      return {
+        message: 'Registro exitoso como cliente',
+        user: {
+          id: cliente.id,
+          fullName: `${cliente.nombre} ${cliente.apellido}`,
+          email: cliente.email,
+          role: 'cliente',
+          isActive: true,
+        },
+        token,
+        refreshToken: null,
+      };
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('El email o cédula ya está registrado');
+      }
+      throw error;
     }
-
-    // Generar el token JWT y refreshToken
-    const token = await this.generateToken(user.id, user.email, user.role);
-    const refreshToken = await this.generateToken(user.id, user.email, user.role);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        isActive: user.isActive,
-        idEmpleado: user.idEmpleado,
-        idCliente: user.idCliente,
-      },
-      token,
-      refreshToken,
-    };
   }
 
   /**
    * Login de usuario
-   * Valida credenciales y retorna un token JWT
+   * Busca primero en Cliente, luego en Empleado
+   * Retorna token JWT diferenciado por rol
    */
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    // Buscar usuario por email (incluye password)
-    let user = await this.userService.findOneByEmail(email);
+    // Intenta buscar en Cliente
+    let cliente = await this.clienteService.findByEmail(email);
+    if (cliente) {
+      const isPasswordValid = await bcrypt.compare(password, cliente.password);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
 
-    // Verificar si el usuario existe
-    if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      const token = this.generateToken(cliente.id, cliente.email, 'cliente', undefined, cliente.id);
+      return {
+        user: {
+          id: cliente.id,
+          fullName: `${cliente.nombre} ${cliente.apellido}`,
+          email: cliente.email,
+          role: 'cliente',
+          isActive: true,
+          idCliente: cliente.id,
+        },
+        token,
+        refreshToken: null,
+      };
     }
 
-    // Verificar si el usuario está activo
-    if (!user.isActive) {
-      throw new UnauthorizedException('Usuario inactivo');
+    // Intenta buscar en Empleado
+    let empleado = await this.empleadoService.findByEmail(email);
+    if (empleado) {
+      const isPasswordValid = await bcrypt.compare(password, empleado.password);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
+
+      // El rol del empleado: 'recepcionista', 'admin', etc.
+      const token = this.generateToken(
+        empleado.id,
+        empleado.email,
+        empleado.rol,
+        empleado.id_hotel,
+        undefined,
+        empleado.id,
+      );
+      return {
+        user: {
+          id: empleado.id,
+          fullName: `${empleado.nombre} ${empleado.apellido}`,
+          email: empleado.email,
+          role: empleado.rol.toLowerCase(),
+          isActive: true,
+          idEmpleado: empleado.id,
+          idHotel: empleado.id_hotel,
+        },
+        token,
+        refreshToken: null,
+      };
     }
 
-    // Comparar contraseñas
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
-    }
-
-    // Si es cliente pero no tiene idCliente, crear uno automáticamente
-    if (user.role === 'cliente' && !user.idCliente) {
-      const cliente = await this.clienteService.create({
-        idUsuario: user.id,
-        cedula: `TEMP_${user.id}`,
-        nombre: user.fullName || 'Cliente',
-        apellido: '',
-        email: user.email,
-      });
-
-      user.idCliente = cliente.id;
-      user = await this.userService.update(user.id, { idCliente: cliente.id } as any);
-    }
-
-    // Generar el token JWT y refreshToken
-    const token = await this.generateToken(user.id, user.email, user.role);
-    const refreshToken = await this.generateToken(user.id, user.email, user.role);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        isActive: user.isActive,
-        idEmpleado: user.idEmpleado,
-        idCliente: user.idCliente,
-      },
-      token,
-      refreshToken,
-    };
+    // Si no se encuentra en ninguna tabla
+    throw new UnauthorizedException('Credenciales inválidas');
   }
 
   /**
    * Generar token JWT
    * Crea un token con el payload especificado
    */
-  private async generateToken(
+  private generateToken(
     userId: number,
     email: string,
-    role: string,
-  ): Promise <string> {
+    rol: string,
+    idHotel?: number,
+    idCliente?: number,
+    idEmpleado?: number,
+  ): string {
     const payload: JwtPayload = {
       sub: userId,
       email,
-      role,
+      rol,
     };
 
-    // Firmar y retornar el token
-    return await this.jwtService.signAsync(payload);
+    if (idHotel !== undefined) {
+      payload.idHotel = idHotel;
+    }
+    if (idCliente !== undefined) {
+      payload.idCliente = idCliente;
+    }
+    if (idEmpleado !== undefined) {
+      payload.idEmpleado = idEmpleado;
+    }
+
+    return this.jwtService.sign(payload);
   }
 
   /**
-   * Validar token y retornar información del usuario
+   * Validar token y retornar información del payload
    */
   async validateToken(token: string) {
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      const user = await this.userService.findOne(payload.sub);
-      return user;
+      return payload;
     } catch (error) {
       throw new UnauthorizedException('Token inválido');
     }
+  }
+
+  /**
+   * Actualizar perfil del usuario autenticado
+   */
+  async updateProfile(userId: number, rol: string, fullName: string) {
+    // Dividir el nombre en nombre y apellido
+    const parts = fullName.trim().split(' ');
+    const nombre = parts[0];
+    const apellido = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+
+    if (rol.toLowerCase() === 'cliente') {
+      // Actualizar cliente
+      return await this.clienteService.update(userId, {
+        nombre,
+        apellido,
+      });
+    } else {
+      // Actualizar empleado (recepcionista, admin, superadmin)
+      return await this.empleadoService.update(userId, {
+        nombre,
+        apellido,
+      });
+    }
+  }
+
+  /**
+   * Completar perfil del cliente (datos adicionales)
+   * Agrega cédula, teléfono, tipo de documento al cliente
+   */
+  async completeClientProfile(
+    clienteId: number,
+    cedula: string,
+    tipoDocumento?: string,
+    telefono?: string,
+  ) {
+    return await this.clienteService.update(clienteId, {
+      cedula,
+      tipoDocumento: tipoDocumento || 'CC',
+      telefono,
+    });
+  }
+
+  /**
+   * Obtener todos los usuarios del sistema
+   * Combina clientes y empleados
+   */
+  async getAllUsers() {
+    const clientes = await this.clienteService.findAll();
+    const empleados = await this.empleadoService.findAll();
+
+    // Mapear clientes a formato User
+    const clientesFormateados = clientes.map(cliente => ({
+      _id: cliente.id.toString(),
+      id: cliente.id,
+      name: `${cliente.nombre} ${cliente.apellido}`,
+      fullName: `${cliente.nombre} ${cliente.apellido}`,
+      email: cliente.email,
+      role: cliente.rol.toLowerCase(),
+      isActive: true,
+      idCliente: cliente.id,
+      createdAt: cliente.createdAt,
+      updatedAt: cliente.updatedAt,
+    }));
+
+    // Mapear empleados a formato User
+    const empleadosFormateados = empleados.map(empleado => ({
+      _id: empleado.id.toString(),
+      id: empleado.id,
+      name: `${empleado.nombre} ${empleado.apellido}`,
+      fullName: `${empleado.nombre} ${empleado.apellido}`,
+      email: empleado.email,
+      role: empleado.rol.toLowerCase(),
+      isActive: empleado.estado === 'activo',
+      idEmpleado: empleado.id,
+      idHotel: empleado.id_hotel,
+      createdAt: empleado.createdAt,
+      updatedAt: empleado.updatedAt,
+    }));
+
+    // Combinar y ordenar por fecha de creación descendente
+    const todosLosUsuarios = [...clientesFormateados, ...empleadosFormateados].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    return {
+      users: todosLosUsuarios,
+      count: todosLosUsuarios.length,
+    };
+  }
+
+  /**
+   * Desactivar un usuario (empleado)
+   * Los clientes no pueden ser desactivados de esta forma
+   */
+  async deactivateUser(userId: number) {
+    const empleado = await this.empleadoService.findById(userId);
+    const updated = await this.empleadoService.update(userId, {
+      estado: 'inactivo',
+    });
+
+    return {
+      _id: updated.id.toString(),
+      id: updated.id,
+      name: `${updated.nombre} ${updated.apellido}`,
+      fullName: `${updated.nombre} ${updated.apellido}`,
+      email: updated.email,
+      role: updated.rol.toLowerCase(),
+      isActive: updated.estado === 'activo',
+      idEmpleado: updated.id,
+      idHotel: updated.id_hotel,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  /**
+   * Reactivar un usuario (empleado)
+   */
+  async reactivateUser(userId: number) {
+    const empleado = await this.empleadoService.findById(userId);
+    const updated = await this.empleadoService.update(userId, {
+      estado: 'activo',
+    });
+
+    return {
+      _id: updated.id.toString(),
+      id: updated.id,
+      name: `${updated.nombre} ${updated.apellido}`,
+      fullName: `${updated.nombre} ${updated.apellido}`,
+      email: updated.email,
+      role: updated.rol.toLowerCase(),
+      isActive: updated.estado === 'activo',
+      idEmpleado: updated.id,
+      idHotel: updated.id_hotel,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
   }
 }

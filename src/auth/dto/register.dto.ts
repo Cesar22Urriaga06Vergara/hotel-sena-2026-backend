@@ -1,11 +1,36 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional, IsNumber } from 'class-validator';
-import { UserRole } from '../../user/entities/user.entity';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
+/**
+ * DTO para registro de clientes (Paso 1 - Básico)
+ * RESTRICCIÓN: Este DTO es SOLO para clientes
+ * - NO tiene campo 'rol' ni 'idEmpleado'
+ * - El rol 'cliente' se asigna automáticamente
+ * - Los empleados se crean por el admin mediante POST /empleados
+ * 
+ * Datos adicionales (cédula, teléfono, tipo documento) se completan después
+ * al hacer la primera reserva o desde el perfil del usuario
+ */
 export class RegisterDto {
   @ApiProperty({
+    example: 'Juan',
+    description: 'Nombre del cliente',
+  })
+  @IsString({ message: 'El nombre debe ser una cadena de texto' })
+  @IsNotEmpty({ message: 'El nombre es obligatorio' })
+  nombre: string;
+
+  @ApiProperty({
+    example: 'Pérez',
+    description: 'Apellido del cliente',
+  })
+  @IsString({ message: 'El apellido debe ser una cadena de texto' })
+  @IsNotEmpty({ message: 'El apellido es obligatorio' })
+  apellido: string;
+
+  @ApiProperty({
     example: 'usuario@correo.com',
-    description: 'Correo electrónico del usuario',
+    description: 'Correo electrónico del cliente',
   })
   @IsEmail({}, { message: 'El email debe ser válido' })
   @IsNotEmpty({ message: 'El email es obligatorio' })
@@ -14,43 +39,10 @@ export class RegisterDto {
   @ApiProperty({
     example: 'password123',
     minLength: 6,
-    description: 'Contraseña del usuario',
+    description: 'Contraseña del cliente',
   })
   @IsString({ message: 'La contraseña debe ser una cadena de texto' })
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   @IsNotEmpty({ message: 'La contraseña es obligatoria' })
   password: string;
-
-  @ApiProperty({
-    example: 'Juan Pérez',
-    description: 'Nombre completo del usuario',
-  })
-  @IsString({ message: 'El nombre completo debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'El nombre completo es obligatorio' })
-  fullName: string;
-
-  @ApiPropertyOptional({
-    enum: UserRole,
-    example: UserRole.CLIENTE,
-    description: 'Rol del usuario',
-  })
-  @IsEnum(UserRole, { message: 'El rol debe ser: admin, recepcionista o cliente' })
-  @IsOptional()
-  role?: UserRole;
-
-  @ApiPropertyOptional({
-    example: 10,
-    description: 'ID del empleado asociado (si aplica)',
-  })
-  @IsNumber({}, { message: 'El ID de empleado debe ser un número' })
-  @IsOptional()
-  idEmpleado?: number;
-
-  @ApiPropertyOptional({
-    example: 25,
-    description: 'ID del cliente asociado (si aplica)',
-  })
-  @IsNumber({}, { message: 'El ID de cliente debe ser un número' })
-  @IsOptional()
-  idCliente?: number;
 }

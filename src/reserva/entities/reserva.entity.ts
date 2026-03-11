@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Habitacion } from '../../habitacion/entities/habitacion.entity';
 import { TipoHabitacion } from '../../tipo-habitacion/entities/tipo-habitacion.entity';
+import { Cliente } from '../../cliente/entities/cliente.entity';
 
 @Entity('reservas')
 export class Reserva {
@@ -42,8 +43,8 @@ export class Reserva {
   @Column({ name: 'numero_huespedes', type: 'smallint' })
   numeroHuespedes: number;
 
-  @Column({ name: 'estado_reserva', default: 'pendiente' })
-  estadoReserva: string; // pendiente, confirmada, cancelada, rechazada, completada
+  @Column({ name: 'estado_reserva', default: 'reservada' })
+  estadoReserva: string; // reservada, confirmada, cancelada, rechazada, completada
 
   @Column({ name: 'origen_reserva', default: 'web' })
   origenReserva: string; // web, mostrador, telefono
@@ -56,6 +57,15 @@ export class Reserva {
 
   @Column({ name: 'observaciones', type: 'text', nullable: true })
   observaciones: string;
+
+  @Column({ name: 'cedula_cliente', nullable: true })
+  cedulaCliente: string;
+
+  @Column({ name: 'nombre_cliente', nullable: true })
+  nombreCliente: string;
+
+  @Column({ name: 'email_cliente', nullable: true })
+  emailCliente: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -70,4 +80,8 @@ export class Reserva {
   @ManyToOne(() => TipoHabitacion, { eager: true, nullable: true })
   @JoinColumn({ name: 'id_tipo_habitacion' })
   tipoHabitacion: TipoHabitacion;
+
+  @ManyToOne(() => Cliente, { nullable: true })
+  @JoinColumn({ name: 'id_cliente' })
+  cliente: Cliente;
 }

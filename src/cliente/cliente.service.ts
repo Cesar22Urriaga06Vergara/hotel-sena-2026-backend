@@ -1,24 +1,43 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { Cliente } from './entities/cliente.entity';
-import { User } from '../user/entities/user.entity';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { UpdateClienteDto } from './dto/update-cliente.dto';
 
 @Injectable()
 export class ClienteService {
   constructor(
     @InjectRepository(Cliente)
     private clienteRepository: Repository<Cliente>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
   ) {}
 
   /**
    * Crear un nuevo cliente
+   * El password debe llegar ya hasheado desde AuthService
+   * El rol siempre se establece como 'cliente'
    */
   async create(createClienteDto: CreateClienteDto): Promise<Cliente> {
-    const cliente = this.clienteRepository.create(createClienteDto);
+    // Verificar si el cliente ya existe por email o cédula
+    const existingCliente = await this.clienteRepository.findOne({
+      where: [
+        { email: createClienteDto.email },
+        { cedula: createClienteDto.cedula },
+      ],
+    });
+
+    if (existingCliente) {
+      throw new ConflictException(
+        'El cliente con este email o cédula ya existe',
+      );
+    }
+
+    // Asegurar que el rol siempre es 'cliente'
+    const cliente = this.clienteRepository.create({
+      ...createClienteDto,
+      rol: 'cliente',
+    });
     return await this.clienteRepository.save(cliente);
   }
 
@@ -33,7 +52,9 @@ export class ClienteService {
    * Obtener un cliente por ID
    */
   async findOne(id: number): Promise<Cliente> {
-    const cliente = await this.clienteRepository.findOne({ where: { id } });
+    const cliente = await this.clienteRepository.findOne({
+      where: { id },
+    });
 
     if (!cliente) {
       throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
@@ -43,32 +64,48 @@ export class ClienteService {
   }
 
   /**
-   * Obtener un cliente por ID de usuario
+   * Obtener un cliente por email (incluye password para login)
+   * Usado en AuthService.login()
    */
-  async findByUsuarioId(idUsuario: number): Promise<Cliente | null> {
-    return await this.clienteRepository.findOne({ where: { idUsuario } });
+  async findByEmail(email: string): Promise<Cliente | null> {
+    return await this.clienteRepository
+      .createQueryBuilder('cliente')
+      .addSelect('cliente.password')
+      .where('cliente.email = :email', { email })
+      .getOne();
   }
 
   /**
-   * Actualizar un cliente y sincronizar con usuario
+   * Obtener un cliente por cédula
    */
-  async update(id: number, updateClienteDto: Partial<Cliente>): Promise<Cliente> {
-    const cliente = await this.findOne(id);
-    Object.assign(cliente, updateClienteDto);
-    const clienteActualizado = await this.clienteRepository.save(cliente);
+  async findByCedula(cedula: string): Promise<Cliente> {
+    const cliente = await this.clienteRepository.findOne({
+      where: { cedula },
+    });
 
-    // Sincronizar con tabla users si se actualiza nombre o apellido
-    if (updateClienteDto.nombre || updateClienteDto.apellido) {
-      const usuario = await this.userRepository.findOne({ where: { idCliente: id } });
-      if (usuario) {
-        const nombre = updateClienteDto.nombre || cliente.nombre;
-        const apellido = updateClienteDto.apellido || cliente.apellido;
-        usuario.fullName = `${nombre} ${apellido}`.trim();
-        await this.userRepository.save(usuario);
-      }
+    if (!cliente) {
+      throw new NotFoundException(`Cliente con cédula ${cedula} no encontrado`);
     }
 
-    return clienteActualizado;
+    return cliente;
+  }
+
+  /**
+   * Actualizar un cliente
+   */
+  async update(
+    id: number,
+    updateClienteDto: UpdateClienteDto,
+  ): Promise<Cliente> {
+    const cliente = await this.findOne(id);
+    
+    // Si la contraseña está siendo actualizada, hashearla
+    if (updateClienteDto.password) {
+      updateClienteDto.password = await bcrypt.hash(updateClienteDto.password, 10);
+    }
+    
+    Object.assign(cliente, updateClienteDto);
+    return await this.clienteRepository.save(cliente);
   }
 
   /**

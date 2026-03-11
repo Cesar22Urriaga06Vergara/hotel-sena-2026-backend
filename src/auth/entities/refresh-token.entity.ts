@@ -3,10 +3,7 @@ import {
   Column, 
   PrimaryGeneratedColumn, 
   CreateDateColumn,
-  ManyToOne,
-  JoinColumn
 } from 'typeorm';
-import { User } from '../../user/entities/user.entity';
 
 @Entity('refresh_tokens')
 export class RefreshToken {
@@ -19,9 +16,8 @@ export class RefreshToken {
   @Column()
   userId: number;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
-  user: User;
+  @Column()
+  userType: string; // 'cliente' o 'empleado'
 
   @Column()
   expiresAt: Date;

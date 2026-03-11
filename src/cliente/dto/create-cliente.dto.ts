@@ -1,37 +1,55 @@
-import { IsNumber, IsString, IsOptional, IsEmail, IsDateString } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateClienteDto {
-  @ApiProperty({ description: 'ID del usuario' })
-  @IsNumber()
-  idUsuario: number;
-
-  @ApiPropertyOptional({ description: 'Tipo de documento' })
+  @ApiPropertyOptional({ example: '1003001750', description: 'Cédula única del cliente' })
   @IsOptional()
   @IsString()
-  tipoDocumento?: string;
+  cedula?: string;
 
-  @ApiProperty({ description: 'Número de cédula' })
+  @ApiProperty({ example: 'Juan', description: 'Nombre del cliente' })
   @IsString()
-  cedula: string;
-
-  @ApiProperty({ description: 'Nombre del cliente' })
-  @IsString()
+  @IsNotEmpty()
   nombre: string;
 
-  @ApiProperty({ description: 'Apellido del cliente' })
+  @ApiProperty({ example: 'Pérez', description: 'Apellido del cliente' })
   @IsString()
+  @IsNotEmpty()
   apellido: string;
 
-  @ApiPropertyOptional({ description: 'Teléfono' })
+  @ApiProperty({ example: 'juan@example.com', description: 'Email único del cliente' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({
+    example: 'hashedPassword123',
+    description: 'Contraseña hasheada (generada internamente por AuthService)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+
+  @ApiPropertyOptional({ example: '+57 300 1234567', description: 'Teléfono del cliente' })
   @IsOptional()
   @IsString()
   telefono?: string;
 
-  @ApiPropertyOptional({ description: 'Email' })
+  @ApiPropertyOptional({
+    example: 'CC',
+    description: 'Tipo de documento (CC, TI, PEP, etc.)',
+  })
   @IsOptional()
-  @IsEmail()
-  email?: string;
+  @IsString()
+  tipoDocumento?: string;
+
+  @ApiPropertyOptional({
+    example: 'cliente',
+    description: 'Rol del usuario (por defecto "cliente")',
+  })
+  @IsOptional()
+  @IsString()
+  rol?: string;
 
   @ApiPropertyOptional({ description: 'Dirección' })
   @IsOptional()
@@ -53,9 +71,9 @@ export class CreateClienteDto {
   @IsString()
   idiomaPreferido?: string;
 
-  @ApiPropertyOptional({ description: 'Fecha de nacimiento' })
+  @ApiPropertyOptional({ description: 'Fecha de nacimiento (formato ISO)' })
   @IsOptional()
-  @IsDateString()
+  @IsString()
   fechaNacimiento?: string;
 
   @ApiPropertyOptional({ description: 'Tipo de visa' })
@@ -68,8 +86,8 @@ export class CreateClienteDto {
   @IsString()
   numeroVisa?: string;
 
-  @ApiPropertyOptional({ description: 'Fecha de expiración de visa' })
+  @ApiPropertyOptional({ description: 'Fecha de expiración de visa (formato ISO)' })
   @IsOptional()
-  @IsDateString()
+  @IsString()
   visaExpira?: string;
 }
