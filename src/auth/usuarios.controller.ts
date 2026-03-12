@@ -1,7 +1,8 @@
 import { Controller, Get, UseGuards, Delete, Post, Param, ParseIntPipe } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard, Roles } from './guards/roles.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { Roles } from './decorators/roles.decorator';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -20,7 +21,7 @@ export class UsuariosController {
    * Requiere autenticación JWT y rol admin
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin', 'superadmin'])
+  @Roles('admin', 'superadmin')
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todos los usuarios (Admin)' })
@@ -42,7 +43,7 @@ export class UsuariosController {
    * Requiere autenticación JWT y rol admin
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin', 'superadmin'])
+  @Roles('admin', 'superadmin')
   @Delete(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Desactivar un usuario' })
@@ -64,7 +65,7 @@ export class UsuariosController {
    * Requiere autenticación JWT y rol admin
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin', 'superadmin'])
+  @Roles('admin', 'superadmin')
   @Post(':id/reactivate')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reactivar un usuario' })
@@ -80,3 +81,5 @@ export class UsuariosController {
     };
   }
 }
+
+

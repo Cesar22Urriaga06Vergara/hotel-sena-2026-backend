@@ -12,6 +12,7 @@ import { ReservaModule } from './reserva/reserva.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { EmpleadoModule } from './empleado/empleado.module';
 import { HotelModule } from './hotel/hotel.module';
+import { ServicioModule } from './servicio/servicio.module';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { HotelModule } from './hotel/hotel.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: false,
+        synchronize: true,
       }),
       inject: [ConfigService],
     }),
@@ -52,6 +53,7 @@ import { HotelModule } from './hotel/hotel.module';
     ReservaModule,
     ClienteModule,
     EmpleadoModule,
+    ServicioModule,
 
   ],
   controllers: [AppController],

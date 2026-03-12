@@ -1,18 +1,17 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-
-export const Roles = Reflector.createDecorator<string[]>();
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 /**
  * Guard que verifica si el usuario tiene uno de los roles permitidos
- * Se usa junto con el decorador @Roles(['admin', 'recepcionista'])
+ * Se usa junto con el decorador @Roles('admin', 'recepcionista')
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get(Roles, context.getHandler());
+    const requiredRoles = this.reflector.get<string[]>(ROLES_KEY, context.getHandler());
     
     // Si no hay roles definidos, permitir acceso
     if (!requiredRoles) {

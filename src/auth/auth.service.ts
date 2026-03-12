@@ -33,7 +33,7 @@ export class AuthService {
         rol: 'cliente', // Asegurar que el rol siempre es 'cliente'
       });
 
-      const token = this.generateToken(cliente.id, cliente.email, 'cliente', undefined, cliente.id);
+      const token = this.generateToken(cliente.id, cliente.email, 'cliente', 1, cliente.id);
 
       return {
         message: 'Registro exitoso como cliente',
@@ -71,7 +71,7 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales inválidas');
       }
 
-      const token = this.generateToken(cliente.id, cliente.email, 'cliente', undefined, cliente.id);
+      const token = this.generateToken(cliente.id, cliente.email, 'cliente', 1, cliente.id);
       return {
         user: {
           id: cliente.id,
@@ -80,6 +80,7 @@ export class AuthService {
           role: 'cliente',
           isActive: true,
           idCliente: cliente.id,
+          idHotel: 1,
         },
         token,
         refreshToken: null,

@@ -1,6 +1,17 @@
-import { IsString, IsEmail, IsNotEmpty, IsNumber, MinLength, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsNumber, MinLength, IsOptional, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export const ROLES_EMPLEADO = [
+  'superadmin',
+  'admin',
+  'recepcionista',
+  'cafeteria',
+  'lavanderia',
+  'spa',
+  'room_service',
+] as const;
+export type RolEmpleado = typeof ROLES_EMPLEADO[number];
 
 export class CreateEmpleadoDto {
   @ApiPropertyOptional({
@@ -43,11 +54,14 @@ export class CreateEmpleadoDto {
 
   @ApiProperty({
     example: 'recepcionista',
-    description: 'Rol del empleado (recepcionista, admin, superadmin)',
+    description: 'Rol del empleado',
+    enum: ROLES_EMPLEADO,
   })
-  @IsString()
+  @IsEnum(ROLES_EMPLEADO, {
+    message: `El rol debe ser uno de: ${ROLES_EMPLEADO.join(', ')}`,
+  })
   @IsNotEmpty()
-  rol: string;
+  rol: RolEmpleado;
 
   @ApiPropertyOptional({
     example: 'activo',

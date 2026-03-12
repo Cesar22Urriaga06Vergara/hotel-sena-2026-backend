@@ -20,7 +20,8 @@ import { CreateEmpleadoDto } from './dto/create-empleado.dto';
 import { UpdateEmpleadoDto } from './dto/update-empleado.dto';
 import { Empleado } from './entities/empleado.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('empleados')
 @Controller('empleados')
@@ -29,7 +30,7 @@ export class EmpleadoController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin'])
+  @Roles('superadmin', 'admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear nuevo empleado (solo superadmin o admin)' })
   @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
@@ -40,7 +41,7 @@ export class EmpleadoController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin', 'recepcionista'])
+  @Roles('superadmin', 'admin', 'recepcionista')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todos los empleados' })
   @ApiResponse({ status: 200, description: 'Lista de empleados' })
@@ -50,7 +51,7 @@ export class EmpleadoController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin', 'recepcionista'])
+  @Roles('superadmin', 'admin', 'recepcionista')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener empleado por ID' })
   @ApiResponse({ status: 200, description: 'Empleado encontrado' })
@@ -60,7 +61,7 @@ export class EmpleadoController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin'])
+  @Roles('superadmin', 'admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Actualizar empleado' })
   @ApiResponse({ status: 200, description: 'Empleado actualizado' })
@@ -73,7 +74,7 @@ export class EmpleadoController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin'])
+  @Roles('superadmin', 'admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Eliminar empleado' })
   @ApiResponse({ status: 200, description: 'Empleado eliminado' })
@@ -81,3 +82,5 @@ export class EmpleadoController {
     return this.empleadoService.remove(id);
   }
 }
+
+

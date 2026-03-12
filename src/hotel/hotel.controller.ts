@@ -22,7 +22,8 @@ import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { Hotel } from './entities/hotel.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Hoteles')
 @Controller('hoteles')
@@ -35,7 +36,7 @@ export class HotelController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin'])
+  @Roles('superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear nuevo hotel (solo superadmin)' })
   @ApiBody({ type: CreateHotelDto })
@@ -52,7 +53,7 @@ export class HotelController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin', 'admin'])
+  @Roles('superadmin', 'admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Listar todos los hoteles' })
   @ApiResponse({ status: 200, description: 'Lista de hoteles' })
@@ -80,7 +81,7 @@ export class HotelController {
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin'])
+  @Roles('superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Actualizar un hotel (solo superadmin)' })
   @ApiParam({ name: 'id', type: Number })
@@ -101,7 +102,7 @@ export class HotelController {
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['superadmin'])
+  @Roles('superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Eliminar un hotel (solo superadmin)' })
   @ApiParam({ name: 'id', type: Number })
@@ -113,3 +114,5 @@ export class HotelController {
     return { message: 'Hotel eliminado correctamente' };
   }
 }
+
+

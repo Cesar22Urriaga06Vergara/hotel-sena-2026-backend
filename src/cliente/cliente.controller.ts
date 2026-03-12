@@ -22,7 +22,8 @@ import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { Cliente } from './entities/cliente.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Clientes')
 @Controller('clientes')
@@ -36,7 +37,7 @@ export class ClienteController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin'])
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear nuevo cliente (solo admin)' })
   @ApiBody({ type: CreateClienteDto })
@@ -65,7 +66,7 @@ export class ClienteController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin', 'recepcionista'])
+  @Roles('admin', 'recepcionista')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todos los clientes' })
   @ApiResponse({ status: 200, description: 'Lista de clientes' })
@@ -80,7 +81,7 @@ export class ClienteController {
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin'])
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Actualizar datos de un cliente' })
   @ApiParam({ name: 'id', type: Number })
@@ -101,7 +102,7 @@ export class ClienteController {
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(['admin'])
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Eliminar un cliente' })
   @ApiParam({ name: 'id', type: Number })
@@ -113,3 +114,5 @@ export class ClienteController {
     return { message: 'Cliente eliminado correctamente' };
   }
 }
+
+

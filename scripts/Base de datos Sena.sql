@@ -1,45 +1,28 @@
--- 1. Crear tabla hoteles (es mejor que "hotel")
-CREATE TABLE `hoteles` (
-    `id_hotel` INT PRIMARY KEY AUTO_INCREMENT,
-    `nombre` VARCHAR(100) NOT NULL,
-    `nit` VARCHAR(20) NOT NULL UNIQUE,
-    `direccion` VARCHAR(200),
-    `ciudad` VARCHAR(100),
-    `pais` VARCHAR(100),
-    `telefono` VARCHAR(20),
-    `email` VARCHAR(100),
-    `estrellas` INT,
-    `descripcion` TEXT,
-    `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+-- Script de seed para servicios de ejemplo
+-- Insertar servicios de Cafetería
+INSERT IGNORE INTO servicios (id_hotel, nombre, descripcion, categoria, precio_unitario, unidad_medida, disponible_delivery, disponible_recogida, activo) VALUES
+(1, 'Café Expreso', 'Café expreso de alta calidad', 'cafeteria', 15000, 'taza', 1, 1, 1),
+(1, 'Cappuccino', 'Cappuccino cremoso con leche', 'cafeteria', 18000, 'taza', 1, 1, 1),
+(1, 'Latte', 'Café con leche suave', 'cafeteria', 16000, 'taza', 1, 1, 1),
+(1, 'Té Caliente', 'Variado de tés premium', 'cafeteria', 12000, 'taza', 1, 1, 1),
+(1, 'Desayuno Continental', 'Pan, frutas y queso', 'cafeteria', 35000, 'porción', 1, 0, 1);
 
--- 2. Insertar Hotel Sena 2026
-INSERT INTO `hoteles` (`nombre`, `nit`, `ciudad`, `pais`, `telefono`, `email`, `estrellas`) 
-VALUES ('Hotel Sena 2026', '123456789', 'Bogotá', 'Colombia', '3005551234', 'hotel@sena.com', 5);
+-- Insertar servicios de Lavandería
+INSERT IGNORE INTO servicios (id_hotel, nombre, descripcion, categoria, precio_unitario, unidad_medida, disponible_delivery, disponible_recogida, activo) VALUES
+(1, 'Lavado y Planchado de Ropa', 'Servicio estándar de lavandería', 'lavanderia', 50000, 'kg', 1, 1, 1),
+(1, 'Servicio Express', 'Lavado rápido (4 horas)', 'lavanderia', 75000, 'kg', 1, 0, 1),
+(1, 'Limpieza de Trajes', 'Servicio especializado para trajes', 'lavanderia', 40000, 'prenda', 0, 1, 1),
+(1, 'Planchado de Camisas', 'Planchado impecable', 'lavanderia', 8000, 'prenda', 1, 1, 1);
 
--- 3. Crear tabla empleados (FK a hoteles.id_hotel)
--- NOTA: id_hotel es NULLABLE para permitir superadmin sin hotel asignado
-CREATE TABLE `empleados` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `id_hotel` INT,
-  `cedula` VARCHAR(50) UNIQUE NOT NULL,
-  `nombre` VARCHAR(255) NOT NULL,
-  `apellido` VARCHAR(255) NOT NULL,
-  `email` VARCHAR(255),
-  `telefono` VARCHAR(20),
-  `rol` VARCHAR(100),
-  `estado` VARCHAR(50) DEFAULT 'activo',
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`id_hotel`) REFERENCES `hoteles`(`id_hotel`)
-);
+-- Insertar servicios de Room Service
+INSERT IGNORE INTO servicios (id_hotel, nombre, descripcion, categoria, precio_unitario, unidad_medida, disponible_delivery, disponible_recogida, activo) VALUES
+(1, 'Almuerzo Ejecutivo', 'Menú del día con bebida', 'room_service', 45000, 'bandeja', 1, 0, 1),
+(1, 'Cena Especial', 'Plato principal a elegir', 'room_service', 60000, 'bandeja', 1, 0, 1),
+(1, 'Bebidas Variadas', 'Refrescos, jugos y bebidas frías', 'room_service', 8000, 'unidad', 1, 0, 1);
 
--- 4. Insertar superadmin inicial (sin hotel asignado)
-INSERT INTO `empleados` (`id_hotel`, `cedula`, `nombre`, `apellido`, `email`, `rol`) 
-VALUES (NULL, '9999999999', 'SuperAdmin', 'Sistema', 'superadmin@hotelsena.com', 'superadmin');
+-- Insertar servicios de Spa
+INSERT IGNORE INTO servicios (id_hotel, nombre, descripcion, categoria, precio_unitario, unidad_medida, disponible_delivery, disponible_recogida, activo) VALUES
+(1, 'Masaje Relajante', 'Masaje corporal de 60 minutos', 'spa', 120000, 'sesión', 0, 1, 1),
+(1, 'Facial Rejuvenecedor', 'Tratamiento facial premium', 'spa', 100000, 'sesión', 0, 1, 1),
+(1, 'Sauna', 'Acceso a sauna privada', 'spa', 30000, 'sesión', 0, 1, 1);
 
--- 5. Vincular el usuario con el empleado
-UPDATE `users` SET `id_empleado` = 1 WHERE `email` = 'recepcionista@gmail.com';
-
--- 6. Actualizar reservas para que apunten a hoteles.id_hotel (si no está correcto)
-ALTER TABLE `reservas` ADD CONSTRAINT fk_reservas_hotel FOREIGN KEY (`id_hotel`) REFERENCES `hoteles`(`id_hotel`);
