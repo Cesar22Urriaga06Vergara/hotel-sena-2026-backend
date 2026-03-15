@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ClienteService } from '../cliente/cliente.service';
 import { EmpleadoService } from '../empleado/empleado.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 
 @Injectable()
@@ -205,6 +206,81 @@ export class AuthService {
       tipoDocumento: tipoDocumento || 'CC',
       telefono,
     });
+  }
+
+  /**
+   * Registrar el PRIMER SuperAdmin (Bootstrap - sin autenticación)
+   * Este método solo funciona si NO existen superadmins en el sistema
+   * Una vez creado el primero, todos los demás empleados se crean mediante POST /empleados
+   */
+  async registerFirstSuperadmin(createSuperadminDto: CreateSuperadminDto) {
+    try {
+      // Verificar que no exista ningún superadmin
+      const superadmins = await this.empleadoService.findAll();
+      const existeSuperadmin = superadmins.some(emp => emp.rol === 'superadmin');
+
+      if (existeSuperadmin) {
+        throw new BadRequestException(
+          'Ya existe un SuperAdmin en el sistema. Use POST /empleados (autenticado) para crear más empleados.'
+        );
+      }
+
+      // Verificar que la cédula y email no existan
+      const empleadoExistente = await this.empleadoService.findByEmail(createSuperadminDto.email);
+      if (empleadoExistente) {
+        throw new ConflictException('El email ya está registrado');
+      }
+
+      // Hashear la contraseña
+      const hashedPassword = await bcrypt.hash(createSuperadminDto.password, 10);
+
+      // Crear el superadmin (sin id_hotel)
+      const superadmin = await this.empleadoService.create({
+        cedula: createSuperadminDto.cedula,
+        nombre: createSuperadminDto.nombre,
+        apellido: createSuperadminDto.apellido,
+        email: createSuperadminDto.email,
+        password: hashedPassword,
+        rol: 'superadmin',
+        id_hotel: undefined, // SuperAdmin no pertenece a un hotel específico
+        estado: 'activo',
+      });
+
+      // Generar token JWT
+      const token = this.generateToken(
+        superadmin.id,
+        superadmin.email,
+        'superadmin',
+        undefined,
+        undefined,
+        superadmin.id
+      );
+
+      return {
+        message: 'SuperAdmin creado exitosamente. ¡Bienvenido al sistema!',
+        user: {
+          id: superadmin.id,
+          fullName: `${superadmin.nombre} ${superadmin.apellido}`,
+          email: superadmin.email,
+          role: 'superadmin',
+          isActive: true,
+          idEmpleado: superadmin.id,
+          idHotel: null,
+        },
+        token,
+        refreshToken: null,
+      };
+    } catch (error) {
+      // Re-lanzar errores específicos
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      // Manejo de errores de duplicado
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('El email o cédula ya está registrado');
+      }
+      throw error;
+    }
   }
 
   /**

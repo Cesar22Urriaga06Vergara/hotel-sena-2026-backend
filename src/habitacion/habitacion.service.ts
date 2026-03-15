@@ -78,6 +78,7 @@ export class HabitacionService {
 
   /**
    * Subir o actualizar imágenes de una habitación existente
+   * Las imágenes se aplican a TODAS las habitaciones del mismo tipo
    */
   async uploadImages(
     id: number,
@@ -96,14 +97,23 @@ export class HabitacionService {
         files,
       );
 
-      // Si ya hay imágenes, agregarlas (si no, solo guardar las nuevas)
-      const existingImages = habitacion.imagenes ? habitacion.imagenes.split(',') : [];
-      const allImages = [...existingImages, ...imageUrls];
-      
-      // Actualizar habitación con las URLs
-      habitacion.imagenes = allImages.join(',');
-      habitacion.fechaActualizacion = new Date();
-      return await this.habitacionRepository.save(habitacion);
+      // Obtener todas las habitaciones del mismo tipo
+      const habitacionesDelTipo = await this.findByTipo(habitacion.idTipoHabitacion);
+
+      // Actualizar TODAS las habitaciones del mismo tipo con las nuevas imágenes
+      for (const hab of habitacionesDelTipo) {
+        // Si ya hay imágenes, agregarlas (si no, solo guardar las nuevas)
+        const existingImages = hab.imagenes ? hab.imagenes.split(',').filter(url => url.trim()) : [];
+        const allImages = [...existingImages, ...imageUrls];
+        
+        // Actualizar habitación con las URLs
+        hab.imagenes = allImages.join(',');
+        hab.fechaActualizacion = new Date();
+        await this.habitacionRepository.save(hab);
+      }
+
+      // Retornar la habitación original actualizada
+      return await this.findOne(id);
     } catch (error) {
       throw new BadRequestException(
         `Error al subir imágenes: ${error.message}`,

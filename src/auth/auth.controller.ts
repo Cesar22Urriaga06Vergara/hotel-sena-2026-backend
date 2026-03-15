@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get, UseGuards, Request, Put, ForbiddenExceptio
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -52,6 +53,29 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
   async login(@Body() loginDto: LoginDto) {
     return await this.authService.login(loginDto);
+  }
+
+  /**
+   * POST /auth/register-superadmin
+   * Crear el PRIMER SuperAdmin (BOOTSTRAP - sin autenticación)
+   * 
+   * IMPORTANTE:
+   * - Este endpoint es PÚBLICO pero solo funciona si NO existen superadmins
+   * - Se usa una única vez para crear el primer usuario administrador del sistema
+   * - Después de esto, todos los demás empleados se crean mediante POST /empleados (autenticado, protegido)
+   * - Una vez creado el primer superadmin, este endpoint rechazará intentos posteriores
+   */
+  @Post('register-superadmin')
+  @ApiOperation({
+    summary: 'Crear el primer SuperAdmin (BOOTSTRAP)',
+    description: 'Endpoint público para bootstrap inicial. Solo funciona si no existen SuperAdmins en el sistema.'
+  })
+  @ApiBody({ type: CreateSuperadminDto })
+  @ApiResponse({ status: 201, description: 'SuperAdmin creado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Ya existe un SuperAdmin en el sistema' })
+  @ApiResponse({ status: 409, description: 'Email o cédula ya registrados' })
+  async registerFirstSuperadmin(@Body() createSuperadminDto: CreateSuperadminDto) {
+    return await this.authService.registerFirstSuperadmin(createSuperadminDto);
   }
 
   /**
