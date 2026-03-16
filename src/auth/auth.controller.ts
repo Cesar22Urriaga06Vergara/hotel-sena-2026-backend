@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Put, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, Put, ForbiddenException, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -6,6 +6,8 @@ import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -193,5 +195,37 @@ export class AuthController {
       message: 'Sesión cerrada exitosamente',
       user: req.user.email,
     };
+  }
+
+  /**
+   * GET /auth/google
+   * Iniciar flujo OAuth con Google
+   * Redirige al consentimiento de Google
+   */
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Iniciar login con Google (redirige a Google)' })
+  async googleAuth() {
+    // Passport redirige automáticamente a Google
+    // Este handler nunca se ejecuta directamente
+  }
+
+  /**
+   * GET /auth/google/callback
+   * Google redirige aquí tras el consentimiento del usuario
+   * Recupera el cliente encontrado/creado por GoogleStrategy
+   * Genera JWT y redirige al frontend con el token
+   */
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Callback de Google OAuth' })
+  async googleAuthCallback(@Request() req, @Res() res: Response) {
+    const result = await this.authService.googleLogin(req.user);
+
+    // Redirigir al frontend con el token como query param
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/auth/callback?token=${result.token}`;
+
+    return res.redirect(redirectUrl);
   }
 }

@@ -379,4 +379,34 @@ export class AuthService {
       updatedAt: updated.updatedAt,
     };
   }
+
+  /**
+   * Login via Google OAuth
+   * Recibe el cliente ya creado/encontrado por GoogleStrategy validate()
+   * Genera el mismo JWT que el login normal
+   */
+  async googleLogin(cliente: any) {
+    const token = this.generateToken(
+      cliente.id,
+      cliente.email,
+      'cliente',
+      1, // idHotel default
+      cliente.id, // idCliente
+    );
+
+    return {
+      user: {
+        id: cliente.id,
+        fullName: `${cliente.nombre} ${cliente.apellido}`,
+        email: cliente.email,
+        role: 'cliente',
+        isActive: true,
+        photoUrl: cliente.photoUrl,
+        idCliente: cliente.id,
+        idHotel: 1,
+      },
+      token,
+      refreshToken: null,
+    };
+  }
 }

@@ -59,6 +59,16 @@ export class Cliente {
   @Column({ nullable: true })
   visaExpira: Date;
 
+  // Google OAuth
+  @Column({ nullable: true, unique: true })
+  googleId: string;
+
+  @Column({ nullable: true })
+  photoUrl: string;
+
+  @Column({ default: 'local' })
+  authProvider: string; // 'local' o 'google'
+
   @CreateDateColumn({ name: 'fecha_registro' })
   fechaRegistro: Date;
 

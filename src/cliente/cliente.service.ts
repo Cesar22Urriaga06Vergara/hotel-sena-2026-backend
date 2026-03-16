@@ -115,4 +115,52 @@ export class ClienteService {
     const cliente = await this.findOne(id);
     await this.clienteRepository.remove(cliente);
   }
+
+  /**
+   * Buscar o crear cliente desde Google OAuth
+   * Si existe por googleId → retorna
+   * Si existe por email → vincula Google a la cuenta existente
+   * Si no existe → crea cliente nuevo con authProvider='google'
+   */
+  async findOrCreateFromGoogle(profile: {
+    googleId: string;
+    email: string;
+    nombre: string;
+    apellido: string;
+    photoUrl?: string;
+  }): Promise<Cliente> {
+    // 1. Buscar por googleId
+    let cliente = await this.clienteRepository.findOne({
+      where: { googleId: profile.googleId },
+    });
+    if (cliente) return cliente;
+
+    // 2. Buscar por email (puede ser cuenta local existente)
+    cliente = await this.clienteRepository.findOne({
+      where: { email: profile.email },
+    });
+    if (cliente) {
+      // Vincular Google a la cuenta existente
+      cliente.googleId = profile.googleId;
+      cliente.photoUrl = profile.photoUrl ?? cliente.photoUrl;
+      cliente.authProvider = 'google';
+      return await this.clienteRepository.save(cliente);
+    }
+
+    // 3. Crear cliente nuevo
+    const nuevoCliente = this.clienteRepository.create({
+      googleId: profile.googleId,
+      nombre: profile.nombre,
+      apellido: profile.apellido,
+      email: profile.email,
+      photoUrl: profile.photoUrl,
+      authProvider: 'google',
+      rol: 'cliente',
+      // cedula NULL inicialmente para clientes de Google
+      // password no se setea — Google OAuth no tiene password local
+      cedula: `GOOGLE_${profile.googleId}`, // Generar cédula única para cumplir UNIQUE constraint
+      password: '', // Password vacío — no se usará
+    });
+    return await this.clienteRepository.save(nuevoCliente);
+  }
 }
