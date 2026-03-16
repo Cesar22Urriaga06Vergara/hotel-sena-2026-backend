@@ -7,7 +7,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { Response } from 'express';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiBody,

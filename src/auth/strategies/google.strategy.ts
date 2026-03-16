@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, VerifyCallback } from 'passport-google-oauth20';
+import { Strategy } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { ClienteService } from '../../cliente/cliente.service';
 
@@ -11,19 +11,20 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     private readonly clienteService: ClienteService,
   ) {
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID'),
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET'),
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL'),
+      clientID: configService.get<string>('GOOGLE_CLIENT_ID') || '',
+      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || '',
+      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || '',
       scope: ['email', 'profile'],
+      passReqToCallback: true,
     });
   }
 
   async validate(
+    _req: any,
     _accessToken: string,
     _refreshToken: string,
     profile: any,
-    done: VerifyCallback,
-  ): Promise<void> {
+  ): Promise<any> {
     const { id, name, emails, photos } = profile;
 
     const cliente = await this.clienteService.findOrCreateFromGoogle({
@@ -34,6 +35,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       photoUrl: photos?.[0]?.value,
     });
 
-    done(null, cliente);
+    return cliente;
   }
 }
