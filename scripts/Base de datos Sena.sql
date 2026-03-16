@@ -65,14 +65,37 @@ CREATE TABLE IF NOT EXISTS `clientes` (
   `fecha_registro` datetime(6) NOT NULL DEFAULT current_timestamp(6),
   `createdAt` datetime(6) NOT NULL DEFAULT current_timestamp(6),
   `updatedAt` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `googleId` varchar(255) DEFAULT NULL,
+  `photoUrl` varchar(255) DEFAULT NULL,
+  `authProvider` varchar(255) NOT NULL DEFAULT 'local',
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_28fa93cdc380ac510988890cce` (`cedula`),
-  UNIQUE KEY `IDX_3cd5652ab34ca1a0a2c7a25531` (`email`)
+  UNIQUE KEY `IDX_3cd5652ab34ca1a0a2c7a25531` (`email`),
+  UNIQUE KEY `IDX_180e285c672066d3cca2ce1a8d` (`googleId`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.clientes: ~0 rows (aproximadamente)
-INSERT INTO `clientes` (`id`, `cedula`, `nombre`, `apellido`, `email`, `password`, `telefono`, `tipoDocumento`, `rol`, `direccion`, `paisNacionalidad`, `paisResidencia`, `idiomaPreferido`, `fechaNacimiento`, `tipoVisa`, `numeroVisa`, `visaExpira`, `fecha_registro`, `createdAt`, `updatedAt`) VALUES
-	(1, '50919231', 'Juan', 'Sena', 'sena@gmail.com', '$2b$10$ImXMdOFf2..dji8vwaLq3./yeVrFmg5nE82Puqdc8IxlFNR7TBk76', '', 'CC', 'cliente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-14 13:15:17.154991', '2026-03-14 13:15:17.154991', '2026-03-15 15:34:49.000000');
+INSERT INTO `clientes` (`id`, `cedula`, `nombre`, `apellido`, `email`, `password`, `telefono`, `tipoDocumento`, `rol`, `direccion`, `paisNacionalidad`, `paisResidencia`, `idiomaPreferido`, `fechaNacimiento`, `tipoVisa`, `numeroVisa`, `visaExpira`, `fecha_registro`, `createdAt`, `updatedAt`, `googleId`, `photoUrl`, `authProvider`) VALUES
+	(1, '50919231', 'Juan', 'Sena', 'sena@gmail.com', '$2b$10$ImXMdOFf2..dji8vwaLq3./yeVrFmg5nE82Puqdc8IxlFNR7TBk76', '', 'CC', 'cliente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-14 13:15:17.154991', '2026-03-14 13:15:17.154991', '2026-03-15 15:34:49.000000', NULL, NULL, 'local');
+
+-- Volcando estructura para tabla hotel.detalle_facturas
+CREATE TABLE IF NOT EXISTS `detalle_facturas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_factura` int(11) NOT NULL,
+  `tipo_concepto` varchar(255) NOT NULL,
+  `descripcion` varchar(255) NOT NULL,
+  `id_referencia` int(11) DEFAULT NULL,
+  `cantidad` decimal(10,2) NOT NULL,
+  `precio_unitario` decimal(12,2) NOT NULL,
+  `subtotal` decimal(12,2) NOT NULL,
+  `descuento` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `total` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK_8c0face38acb83d9b55adb0e807` (`id_factura`),
+  CONSTRAINT `FK_8c0face38acb83d9b55adb0e807` FOREIGN KEY (`id_factura`) REFERENCES `facturas` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.detalle_facturas: ~0 rows (aproximadamente)
 
 -- Volcando estructura para tabla hotel.empleados
 CREATE TABLE IF NOT EXISTS `empleados` (
@@ -90,13 +113,47 @@ CREATE TABLE IF NOT EXISTS `empleados` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_531b62206ec48fc3ba88593af3` (`cedula`),
   UNIQUE KEY `IDX_a5c9113abdd7c58a2290208119` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Volcando datos para la tabla hotel.empleados: ~2 rows (aproximadamente)
+-- Volcando datos para la tabla hotel.empleados: ~4 rows (aproximadamente)
 INSERT INTO `empleados` (`id`, `id_hotel`, `cedula`, `nombre`, `apellido`, `email`, `password`, `rol`, `estado`, `createdAt`, `updatedAt`) VALUES
 	(1, NULL, '1003001750', 'Cesar', 'Urriaga', 'urriagac44@gmail.com', '$2b$10$OJ1eEny.HEuGrLI.bsDZUOVcOF9aqR/LYjyqRMBwWNuLldjfV3Msy', 'superadmin', 'activo', '2026-03-14 12:52:05.423254', '2026-03-14 13:02:41.926290'),
 	(2, 1, '123456789', 'Juan', 'Sena', 'recepcionista@gmail.com', '$2b$10$wXPhbqO8u3obk4/2iKbGYO.YbCMw3bPZlUaBEcKMoBOJiz0YvTCFy', 'recepcionista', 'activo', '2026-03-14 13:13:37.300321', '2026-03-14 13:13:37.300321'),
-	(3, 1, '1003001751', 'Cesar', 'Urriaga', 'admin@gmail.com', '$2b$10$2RQOr05vUfP4ikrygcpAgem0VHaeEoQtnvcHjaio/RjZgatQ0Emg2', 'admin', 'activo', '2026-03-15 11:41:23.766228', '2026-03-15 11:41:23.766228');
+	(3, 1, '1003001751', 'Cesar', 'Urriaga', 'admin@gmail.com', '$2b$10$2RQOr05vUfP4ikrygcpAgem0VHaeEoQtnvcHjaio/RjZgatQ0Emg2', 'admin', 'activo', '2026-03-15 11:41:23.766228', '2026-03-15 11:41:23.766228'),
+	(6, 1, '234567890', 'Camilo Torres', '', 'camilo@gmail.com', '$2b$10$gR9wLTArbnDn97I4Pud5k.e9BXQL6B5k3Xm8zanMXd4.6l1R2ak96', 'cafeteria', 'activo', '2026-03-15 20:14:42.287163', '2026-03-15 20:14:42.287163');
+
+-- Volcando estructura para tabla hotel.facturas
+CREATE TABLE IF NOT EXISTS `facturas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `numero_factura` varchar(255) NOT NULL,
+  `id_reserva` int(11) NOT NULL,
+  `id_cliente` int(11) NOT NULL,
+  `nombre_cliente` varchar(255) NOT NULL,
+  `cedula_cliente` varchar(255) NOT NULL,
+  `email_cliente` varchar(255) NOT NULL,
+  `id_hotel` int(11) NOT NULL,
+  `subtotal` decimal(12,2) NOT NULL,
+  `porcentaje_iva` decimal(5,2) NOT NULL DEFAULT 19.00,
+  `monto_iva` decimal(12,2) NOT NULL,
+  `total` decimal(12,2) NOT NULL,
+  `estado` varchar(255) NOT NULL DEFAULT 'pendiente',
+  `fecha_emision` datetime DEFAULT NULL,
+  `fecha_vencimiento` datetime DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `cufe` varchar(255) DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `uuid` varchar(255) DEFAULT NULL,
+  `xml_data` longtext DEFAULT NULL,
+  `json_data` longtext DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_0e316c27f9738f9c065b08220b` (`numero_factura`),
+  UNIQUE KEY `IDX_f955080f9b27de038fb57af965` (`uuid`),
+  KEY `FK_8b3f69e871b3d6c02de6c6d03e5` (`id_reserva`),
+  CONSTRAINT `FK_8b3f69e871b3d6c02de6c6d03e5` FOREIGN KEY (`id_reserva`) REFERENCES `reservas` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.facturas: ~0 rows (aproximadamente)
 
 -- Volcando estructura para tabla hotel.habitaciones
 CREATE TABLE IF NOT EXISTS `habitaciones` (
@@ -156,6 +213,48 @@ CREATE TABLE IF NOT EXISTS `hoteles` (
 INSERT INTO `hoteles` (`id`, `nombre`, `nit`, `direccion`, `ciudad`, `pais`, `telefono`, `email`, `estrellas`, `descripcion`, `fecha_registro`, `createdAt`, `updatedAt`) VALUES
 	(1, 'Hotel Valhalla', '123456789', 'Calle 10 No. 5-50', 'Monteria', 'Colombia', '+57 1 1234567', 'info@hotelvalhalla.com', 5, 'Hotel 5 estrellas con servicios premium', '2026-03-14 13:08:09.434758', '2026-03-14 13:08:09.434758', '2026-03-14 13:08:09.434758');
 
+-- Volcando estructura para tabla hotel.medios_pago
+CREATE TABLE IF NOT EXISTS `medios_pago` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(255) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  `activo` tinyint(4) NOT NULL DEFAULT 1,
+  `requiere_referencia` tinyint(4) NOT NULL DEFAULT 0,
+  `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_beeebc04aa15c1104f74d39ed5` (`nombre`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.medios_pago: ~7 rows (aproximadamente)
+INSERT INTO `medios_pago` (`id`, `nombre`, `descripcion`, `activo`, `requiere_referencia`, `created_at`) VALUES
+	(1, 'efectivo', NULL, 1, 0, '2026-03-16 12:56:25.475130'),
+	(2, 'tarjeta_credito', NULL, 1, 1, '2026-03-16 12:56:25.482205'),
+	(3, 'tarjeta_debito', NULL, 1, 1, '2026-03-16 12:56:25.483940'),
+	(4, 'transferencia_bancaria', NULL, 1, 1, '2026-03-16 12:56:25.486847'),
+	(5, 'nequi', NULL, 1, 1, '2026-03-16 12:56:25.488405'),
+	(6, 'daviplata', NULL, 1, 1, '2026-03-16 12:56:25.490413'),
+	(7, 'pse', NULL, 1, 1, '2026-03-16 12:56:25.492617');
+
+-- Volcando estructura para tabla hotel.pagos
+CREATE TABLE IF NOT EXISTS `pagos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_factura` int(11) NOT NULL,
+  `id_medio_pago` int(11) NOT NULL,
+  `monto` decimal(12,2) NOT NULL,
+  `referencia_pago` varchar(255) DEFAULT NULL,
+  `id_empleado_registro` int(11) DEFAULT NULL,
+  `estado` varchar(255) NOT NULL DEFAULT 'completado',
+  `observaciones` text DEFAULT NULL,
+  `fecha_pago` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  PRIMARY KEY (`id`),
+  KEY `FK_a5401e3f720431de8d3ad940713` (`id_factura`),
+  KEY `FK_4e18b9822619a42675ee57bce6a` (`id_medio_pago`),
+  CONSTRAINT `FK_4e18b9822619a42675ee57bce6a` FOREIGN KEY (`id_medio_pago`) REFERENCES `medios_pago` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `FK_a5401e3f720431de8d3ad940713` FOREIGN KEY (`id_factura`) REFERENCES `facturas` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.pagos: ~0 rows (aproximadamente)
+
 -- Volcando estructura para tabla hotel.pedido_items
 CREATE TABLE IF NOT EXISTS `pedido_items` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -172,9 +271,15 @@ CREATE TABLE IF NOT EXISTS `pedido_items` (
   KEY `FK_4a06c038d0e1feeaf700c93a916` (`id_servicio`),
   CONSTRAINT `FK_4a06c038d0e1feeaf700c93a916` FOREIGN KEY (`id_servicio`) REFERENCES `servicios` (`id`) ON UPDATE NO ACTION,
   CONSTRAINT `FK_7ba7b59a72913982e3dc3217796` FOREIGN KEY (`id_pedido`) REFERENCES `pedidos` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Volcando datos para la tabla hotel.pedido_items: ~0 rows (aproximadamente)
+-- Volcando datos para la tabla hotel.pedido_items: ~5 rows (aproximadamente)
+INSERT INTO `pedido_items` (`id`, `id_pedido`, `id_servicio`, `cantidad`, `precio_unitario_snapshot`, `subtotal`, `nombre_servicio_snapshot`, `observacion`, `created_at`) VALUES
+	(1, 1, 10, 2, 5000.00, 10000.00, 'Agua Mineral', NULL, '2026-03-15 17:25:17.081704'),
+	(2, 2, 1, 1, 15000.00, 15000.00, 'Café Expreso', NULL, '2026-03-15 19:52:59.608866'),
+	(3, 2, 10, 1, 5000.00, 5000.00, 'Agua Mineral', NULL, '2026-03-15 19:52:59.612948'),
+	(4, 2, 2, 1, 18000.00, 18000.00, 'Cappuccino', NULL, '2026-03-15 19:52:59.619637'),
+	(5, 2, 5, 1, 35000.00, 35000.00, 'Desayuno Continental', NULL, '2026-03-15 19:52:59.623940');
 
 -- Volcando estructura para tabla hotel.pedidos
 CREATE TABLE IF NOT EXISTS `pedidos` (
@@ -199,9 +304,12 @@ CREATE TABLE IF NOT EXISTS `pedidos` (
   KEY `FK_084336bed940d710a81fa96e59c` (`id_cliente`),
   CONSTRAINT `FK_084336bed940d710a81fa96e59c` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT `FK_2cbd06849c6ee82a099e00dd353` FOREIGN KEY (`id_reserva`) REFERENCES `reservas` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Volcando datos para la tabla hotel.pedidos: ~0 rows (aproximadamente)
+-- Volcando datos para la tabla hotel.pedidos: ~2 rows (aproximadamente)
+INSERT INTO `pedidos` (`id`, `id_reserva`, `id_cliente`, `id_hotel`, `tipo_entrega`, `estado_pedido`, `categoria`, `nota_cliente`, `nota_empleado`, `id_empleado_atiende`, `total_pedido`, `fecha_pedido`, `fecha_actualizacion`) VALUES
+	(1, 1, 1, 1, 'recogida', 'cancelado', 'cafeteria', NULL, NULL, NULL, 10000.00, '2026-03-15 17:25:17.066342', '2026-03-15 17:25:42.000000'),
+	(2, 1, 1, 1, 'delivery', 'entregado', 'cafeteria', NULL, NULL, 6, 73000.00, '2026-03-15 19:52:59.593460', '2026-03-15 20:14:57.000000');
 
 -- Volcando estructura para tabla hotel.refresh_tokens
 CREATE TABLE IF NOT EXISTS `refresh_tokens` (
@@ -248,11 +356,13 @@ CREATE TABLE IF NOT EXISTS `reservas` (
   CONSTRAINT `FK_3380e97aa0b9269b7b27a498749` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT `FK_ba8b7873a80b6362ff118da7d24` FOREIGN KEY (`id_habitacion`) REFERENCES `habitaciones` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT `FK_ec5e6d36f1a0d2188ec75546617` FOREIGN KEY (`id_tipo_habitacion`) REFERENCES `tipos_habitacion` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Volcando datos para la tabla hotel.reservas: ~0 rows (aproximadamente)
+-- Volcando datos para la tabla hotel.reservas: ~3 rows (aproximadamente)
 INSERT INTO `reservas` (`id`, `id_cliente`, `id_hotel`, `id_tipo_habitacion`, `id_habitacion`, `checkin_previsto`, `checkout_previsto`, `checkin_real`, `checkout_real`, `numero_huespedes`, `estado_reserva`, `origen_reserva`, `codigo_confirmacion`, `precio_noche_snapshot`, `observaciones`, `cedula_cliente`, `nombre_cliente`, `email_cliente`, `created_at`, `updated_at`) VALUES
-	(1, 1, 1, 1, 1, '2026-03-14', '2026-03-17', NULL, NULL, 1, 'reservada', 'web', 'RES-MMS9YREZ-WWP6EP', 150.00, NULL, '50919231', 'Juan', 'sena@gmail.com', '2026-03-15 16:36:52.827072', '2026-03-15 16:36:52.827072');
+	(1, 1, 1, 1, 1, '2026-03-14', '2026-03-17', '2026-03-15 17:21:07', '2026-03-16 12:58:58', 1, 'completada', 'web', 'RES-MMS9YREZ-WWP6EP', 150.00, NULL, '50919231', 'Juan', 'sena@gmail.com', '2026-03-15 16:36:52.827072', '2026-03-16 12:58:58.000000'),
+	(2, 1, 1, 1, 1, '2026-03-15', '2026-03-21', '2026-03-16 13:00:25', '2026-03-16 13:03:41', 1, 'completada', 'web', 'RES-MMTHNNYF-TVE8Q8', 20000.00, NULL, '50919231', 'Juan', 'sena@gmail.com', '2026-03-16 12:59:58.220438', '2026-03-16 13:03:41.000000'),
+	(3, 1, 1, 1, 1, '2026-03-15', '2026-03-21', '2026-03-16 13:32:59', '2026-03-16 13:37:09', 1, 'completada', 'web', 'RES-MMTITKEU-K8EA87', 20000.00, NULL, '50919231', 'Juan', 'sena@gmail.com', '2026-03-16 13:32:33.183885', '2026-03-16 13:37:09.000000');
 
 -- Volcando estructura para tabla hotel.servicios
 CREATE TABLE IF NOT EXISTS `servicios` (
@@ -389,9 +499,9 @@ CREATE TABLE IF NOT EXISTS `tipos_habitacion` (
 
 -- Volcando datos para la tabla hotel.tipos_habitacion: ~3 rows (aproximadamente)
 INSERT INTO `tipos_habitacion` (`id`, `id_hotel`, `nombre_tipo`, `descripcion`, `capacidad_personas`, `precio_base`, `activo`, `created_at`, `updated_at`) VALUES
-	(1, 1, 'Suite Estándar', 'Habitación elegante con cama queen size y comodidades básicas', 2, 150.00, 1, '2026-03-14 13:20:17.212591', '2026-03-14 13:20:17.212591'),
-	(2, 1, 'Suite Doble', 'Habitación espaciosa con dos camas dobles y vistas parciales', 4, 250.00, 1, '2026-03-14 13:20:17.212591', '2026-03-14 13:20:17.212591'),
-	(3, 1, 'Suite Premium', 'Habitación de lujo con cama king size, jacuzzi y minibar', 2, 350.00, 1, '2026-03-14 13:20:17.212591', '2026-03-14 13:20:17.212591');
+	(1, 1, 'Suite Estándar', 'Habitación elegante con cama queen size y comodidades básicas', 2, 20000.00, 1, '2026-03-14 13:20:17.212591', '2026-03-15 20:20:09.235134'),
+	(2, 1, 'Suite Doble', 'Habitación espaciosa con dos camas dobles y vistas parciales', 4, 30000.00, 1, '2026-03-14 13:20:17.212591', '2026-03-15 20:21:04.411031'),
+	(3, 1, 'Suite Premium', 'Habitación de lujo con cama king size, jacuzzi y minibar', 2, 40000.00, 1, '2026-03-14 13:20:17.212591', '2026-03-15 20:21:39.321630');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

@@ -99,14 +99,27 @@ export class ServicioService {
       throw new BadRequestException('Reserva no encontrada o no pertenece al cliente');
     }
 
-    // Validar que el cliente ya hizo check-in
-    if (!reserva.checkinReal) {
-      throw new BadRequestException('No puedes pedir servicios antes de hacer check-in');
-    }
+    // Log detallado para debugging
+    console.log(`[PEDIDO] Validando reserva ${reserva.id}:`, {
+      estado: reserva.estadoReserva,
+      checkinReal: reserva.checkinReal,
+      checkoutReal: reserva.checkoutReal,
+    });
 
     // Validar que la reserva no está completada o cancelada
     if (['completada', 'cancelada'].includes(reserva.estadoReserva?.toLowerCase())) {
-      throw new BadRequestException('No puedes pedir servicios en una reserva completada o cancelada');
+      throw new BadRequestException(
+        `No se pueden crear pedidos en una reserva ${reserva.estadoReserva}. ` +
+        `Solo se permiten pedidos en reservas confirmadas después del check-in.`
+      );
+    }
+
+    // Validar que el cliente ya hizo check-in
+    if (!reserva.checkinReal) {
+      throw new BadRequestException(
+        'No puedes pedir servicios antes de hacer check-in. ' +
+        'Por favor, comunícate con recepción para registrar tu entrada al hotel.'
+      );
     }
 
     // Obtener todos los servicios del pedido

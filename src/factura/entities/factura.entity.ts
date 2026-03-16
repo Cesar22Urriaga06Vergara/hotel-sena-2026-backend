@@ -19,6 +19,10 @@ export class Factura {
   @Column({ unique: true, name: 'numero_factura' })
   numeroFactura: string;
 
+  // UUID único para identificación electrónica
+  @Column({ unique: true, nullable: true })
+  uuid: string;
+
   @Column({ name: 'id_reserva' })
   idReserva: number;
 
@@ -73,6 +77,14 @@ export class Factura {
 
   @Column({ nullable: true, type: 'text' })
   observaciones: string;
+
+  // Datos XML de la factura (para DIAN)
+  @Column({ name: 'xml_data', nullable: true, type: 'longtext' })
+  xmlData: string;
+
+  // Datos JSON de la factura (para respaldo interno)
+  @Column({ name: 'json_data', nullable: true, type: 'longtext' })
+  jsonData: string;
 
   // Código Único de Factura Electrónica (futuro: DIAN Colombia)
   @Column({ nullable: true })

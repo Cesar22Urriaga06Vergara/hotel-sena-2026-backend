@@ -532,11 +532,20 @@ export class ReservaService {
     let factura: Factura | null = null;
     try {
       if (this.facturaService) {
+        console.log(`[FACTURA] Iniciando generación de factura para reserva ${reservaGuardada.id}...`);
         factura = await this.facturaService.generarDesdeReserva(reservaGuardada);
+        console.log(`[FACTURA] ✅ Factura generada exitosamente:`, factura?.numeroFactura);
+      } else {
+        console.warn('[FACTURA] ⚠️ FacturaService no disponible, omitiendo generación');
       }
-    } catch (error) {
-      // Si la factura ya existe o hay otro error, loguear pero no fallar el checkout
-      console.warn('Advertencia al generar factura:', error.message);
+    } catch (error: any) {
+      // Loguear el error completo para debugging
+      console.error('❌ [FACTURA] Error al generar factura:', {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack,
+        reservaId: reservaGuardada.id,
+      });
     }
 
     return { reserva: reservaGuardada, factura };

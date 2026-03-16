@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { Factura } from './entities/factura.entity';
 import { DetalleFactura } from './entities/detalle-factura.entity';
 import { CreateFacturaDto } from './dto/create-factura.dto';
@@ -41,11 +42,13 @@ export class FacturaService {
   private async generarNumeroFactura(): Promise<string> {
     const año = new Date().getFullYear();
 
-    // Buscar la última factura creada
-    const ultimaFactura = await this.facturaRepository.findOne({
+    // Buscar la última factura creada usando find() en lugar de findOne()
+    const facturasUltimas = await this.facturaRepository.find({
       order: { id: 'DESC' },
+      take: 1,
     });
 
+    const ultimaFactura = facturasUltimas[0];
     const siguiente = (ultimaFactura?.id ?? 0) + 1;
     return `FAC-${año}-${String(siguiente).padStart(5, '0')}`;
   }
@@ -142,6 +145,7 @@ export class FacturaService {
       // 4. Crear factura
       const factura = new Factura();
       factura.numeroFactura = numeroFactura;
+      factura.uuid = randomUUID();
       factura.idReserva = reserva.id;
       factura.idCliente = reserva.idCliente;
       factura.nombreCliente = reserva.nombreCliente;
@@ -154,6 +158,24 @@ export class FacturaService {
       factura.total = total;
       factura.estado = 'pendiente';
       factura.observaciones = '';
+      factura.fechaEmision = new Date();
+      
+      // Preparar datos JSON (simulado)
+      factura.jsonData = JSON.stringify({
+        numeroFactura,
+        uuid: factura.uuid,
+        cliente: {
+          nombre: reserva.nombreCliente,
+          cedula: reserva.cedulaCliente,
+          email: reserva.emailCliente,
+        },
+        detalles,
+        montos: { subtotal, porcentajeIva, montoIva, total },
+        fechaEmision: new Date().toISOString(),
+      });
+      
+      // Preparar datos XML (simulado para preparación DIAN)
+      factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, { subtotal, porcentajeIva, montoIva, total });
 
       // 5. Guardar factura y detalles
       const facturaGuardada = await queryRunner.manager.save(factura);
@@ -325,4 +347,113 @@ export class FacturaService {
 
     return this.facturaRepository.save(factura);
   }
+
+  /**
+   * Construir XML en formato UBL 2.1 (simulado para preparación DIAN)
+   * Nota: Esta es una simulación. La DIAN requiere firma digital y validación específica.
+   */
+  private construirXmlUBL(
+    numeroFactura: string,
+    uuid: string,
+    reserva: Reserva,
+    detalles: Partial<any>[],
+    montos: { subtotal: number; porcentajeIva: number; montoIva: number; total: number },
+  ): string {
+    const fecha = new Date().toISOString().split('T')[0];
+    const hora = new Date().toISOString().split('T')[1].split('.')[0];
+
+    const detallesXml = detalles
+      .map(
+        (d, idx) => `
+    <cac:InvoiceLine>
+      <cbc:ID>${idx + 1}</cbc:ID>
+      <cbc:InvoicedQuantity unitCode="EA">${d.cantidad}</cbc:InvoicedQuantity>
+      <cac:Item>
+        <cbc:Description>${d.descripcion}</cbc:Description>
+      </cac:Item>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="COP">${Number(d.precioUnitario).toFixed(2)}</cbc:PriceAmount>
+      </cac:Price>
+      <cac:LineExtensionAmount currencyID="COP">${Number(d.total).toFixed(2)}</cac:LineExtensionAmount>
+    </cac:InvoiceLine>`,
+      )
+      .join('\n');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>05</cbc:CustomizationID>
+  <cbc:UUID>${uuid}</cbc:UUID>
+  <cbc:IssueDate>${fecha}</cbc:IssueDate>
+  <cbc:IssueTime>${hora}</cbc:IssueTime>
+  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>
+  <cac:InvoicePeriod>
+    <cbc:StartDate>${fecha}</cbc:StartDate>
+    <cbc:EndDate>${fecha}</cbc:EndDate>
+  </cac:InvoicePeriod>
+  <cac:OrderReference>
+    <cbc:ID>${numeroFactura}</cbc:ID>
+  </cac:OrderReference>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:Name>HOTEL SENA 2026</cbc:Name>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PostalAddress>
+        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>
+        <cbc:CityName>Bogotá</cbc:CityName>
+        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>
+        <cac:Country>
+          <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:Name>${reserva.nombreCliente}</cbc:Name>
+      <cac:PartyIdentification>
+        <cbc:ID>${reserva.cedulaCliente}</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:Contact>
+        <cbc:ElectronicMail>${reserva.emailCliente}</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="COP">${Number(montos.montoIva).toFixed(2)}</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="COP">${Number(montos.subtotal).toFixed(2)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="COP">${Number(montos.montoIva).toFixed(2)}</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>${montos.porcentajeIva}</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="COP">${Number(montos.subtotal).toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="COP">${Number(montos.subtotal).toFixed(2)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="COP">${Number(montos.total).toFixed(2)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="COP">${Number(montos.total).toFixed(2)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  ${detallesXml}
+  <!-- AVISO: Documento generado electrónicamente -->
+  <!-- Simulación para preparación DIAN - No válido fiscalmente sin firma digital -->
+</Invoice>`;
+  }
 }
+

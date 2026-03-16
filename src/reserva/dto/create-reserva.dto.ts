@@ -8,7 +8,7 @@ export class CreateReservaDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsNumber()
+  @Min(1, { message: 'ID de cliente debe ser un número válido' })
   @IsNotEmpty()
   idCliente: number;
 
@@ -17,7 +17,7 @@ export class CreateReservaDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsNumber()
+  @Min(1, { message: 'ID de hotel debe ser un número válido' })
   @IsNotEmpty()
   idHotel: number;
 
@@ -26,7 +26,7 @@ export class CreateReservaDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsNumber()
+  @Min(1, { message: 'ID de tipo habitación debe ser un número válido' })
   @IsNotEmpty()
   idTipoHabitacion: number;
 
@@ -51,8 +51,7 @@ export class CreateReservaDto {
     example: 2,
   })
   @Type(() => Number)
-  @IsNumber()
-  @Min(1)
+  @Min(1, { message: 'Debe haber al menos 1 huésped' })
   @IsNotEmpty()
   numeroHuespedes: number;
 
