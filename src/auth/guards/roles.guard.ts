@@ -21,33 +21,19 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    console.log('🛡️ RolesGuard - Checking roles:', {
-      requiredRoles,
-      userRole: user?.rol,
-      userEmail: user?.email
-    });
-
     // Verificar si el usuario existe y tiene uno de los roles requeridos
     if (!user || !user.rol) {
-      console.error('❌ RolesGuard - User not authenticated or no role');
       throw new ForbiddenException('Usuario no autenticado o no tiene rol');
     }
 
     const hasRole = requiredRoles.includes(user.rol);
     
-    console.log('🛡️ RolesGuard - Role check result:', { hasRole });
-    
     if (!hasRole) {
-      console.error('❌ RolesGuard - Access denied:', {
-        required: requiredRoles.join(', '),
-        userRole: user.rol
-      });
       throw new ForbiddenException(
         `Este recurso requiere uno de los siguientes roles: ${requiredRoles.join(', ')}. Tu rol es: ${user.rol}`,
       );
     }
 
-    console.log('✅ RolesGuard - Access granted');
     return true;
   }
 }

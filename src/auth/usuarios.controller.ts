@@ -54,13 +54,7 @@ export class UsuariosController {
   @ApiResponse({ status: 403, description: 'No tienes permisos' })
   @ApiResponse({ status: 409, description: 'El email ya existe' })
   async createUser(@Body() createUserDto: CreateUserAdminDto) {
-    console.log('📝 POST /users - Creating user:', { 
-      email: createUserDto.email, 
-      role: createUserDto.role,
-      nombre: createUserDto.nombre 
-    });
     const result = await this.authService.createUserAdmin(createUserDto);
-    console.log('✅ User created:', result.user);
     return result;
   }
 
