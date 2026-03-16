@@ -315,7 +315,8 @@ export class ServicioService {
       throw new BadRequestException('Las fechas de check-out deben ser posteriores a check-in');
     }
 
-    const precioNoche = reserva.precioNocheSnapshot || 0;
+    // Asegurar que precioNoche es un número (cast decimal a number)
+    const precioNoche = parseFloat(String(reserva.precioNocheSnapshot || 0));
     const subtotalHabitacion = noches * precioNoche;
 
     // Obtener pedidos entregados
@@ -328,7 +329,8 @@ export class ServicioService {
     const resumenPorCategoria: Record<string, number> = {};
 
     for (const pedido of pedidosEntregados) {
-      const totalPedido = pedido.totalPedido;
+      // Asegurar que totalPedido es un número (cast decimal a number)
+      const totalPedido = parseFloat(String(pedido.totalPedido || 0));
       subtotalServicios += totalPedido;
 
       if (!resumenPorCategoria[pedido.categoria]) {
@@ -337,7 +339,8 @@ export class ServicioService {
       resumenPorCategoria[pedido.categoria] += totalPedido;
     }
 
-    const totalGeneral = subtotalHabitacion + subtotalServicios;
+    // Asegurar que el total es un número
+    const totalGeneral = parseFloat((subtotalHabitacion + subtotalServicios).toFixed(2));
 
     return {
       reserva: {
@@ -348,11 +351,11 @@ export class ServicioService {
         noches,
         idHabitacion: reserva.idHabitacion || 0,
       },
-      subtotalHabitacion,
+      subtotalHabitacion: parseFloat(subtotalHabitacion.toFixed(2)),
       noches,
       precioNoche,
       pedidos: pedidosEntregados,
-      subtotalServicios,
+      subtotalServicios: parseFloat(subtotalServicios.toFixed(2)),
       totalGeneral,
       resumenPorCategoria,
     };
