@@ -1,5 +1,6 @@
 import { IsString, IsEmail, IsNotEmpty, MinLength, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { ROLES_EMPLEADO, type RolEmpleado } from '../../empleado/dto/create-empleado.dto';
 
 /**
  * DTO para que admin/superadmin creen usuarios del sistema
@@ -34,12 +35,14 @@ export class CreateUserAdminDto {
 
   @ApiProperty({
     example: 'admin',
-    enum: ['admin', 'superadmin', 'recepcionista', 'cafeteria', 'lavanderia', 'spa', 'room_service'],
+    enum: ROLES_EMPLEADO,
     description: 'Rol del usuario',
   })
-  @IsEnum(['admin', 'superadmin', 'recepcionista', 'cafeteria', 'lavanderia', 'spa', 'room_service'])
+  @IsEnum(ROLES_EMPLEADO, {
+    message: `El rol debe ser uno de: ${ROLES_EMPLEADO.join(', ')}`,
+  })
   @IsNotEmpty({ message: 'El rol es obligatorio' })
-  role: string;
+  role: RolEmpleado;
 
   @ApiProperty({
     example: '1003001750',
