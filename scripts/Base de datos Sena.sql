@@ -69,6 +69,37 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 
 -- Volcando datos para la tabla hotel.audit_logs: ~0 rows (aproximadamente)
 
+-- Volcando estructura para tabla hotel.categoria_servicios
+CREATE TABLE IF NOT EXISTS `categoria_servicios` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_hotel` int(11) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `codigo` varchar(50) NOT NULL,
+  `activa` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codigo` (`codigo`),
+  KEY `IDX_categoria_hotel` (`id_hotel`),
+  KEY `IDX_categoria_codigo` (`codigo`),
+  KEY `IDX_categoria_activa` (`activa`),
+  CONSTRAINT `FK_categoria_hotel` FOREIGN KEY (`id_hotel`) REFERENCES `hoteles` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.categoria_servicios: ~10 rows (aproximadamente)
+INSERT INTO `categoria_servicios` (`id`, `id_hotel`, `nombre`, `descripcion`, `codigo`, `activa`, `created_at`, `updated_at`) VALUES
+	(1, 1, 'Alojamiento', 'Hospedaje en habitaciones del hotel', 'ALOJAMIENTO', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(2, 1, 'Restaurante/Cafetería', 'Servicios de comidas y bebidas', 'RESTAURANTE', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(3, 1, 'Minibar/Tienda', 'Minibar, tienda y productos básicos', 'MINIBAR', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(4, 1, 'Lavandería', 'Servicios de lavado y planchado', 'LAVANDERIA', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(5, 1, 'Spa', 'Servicios de bienestar y masajes', 'SPA', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(6, 1, 'Room Service', 'Servicio a habitación (comidas, etc.)', 'ROOM_SERVICE', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(7, 1, 'Transporte', 'Transporte y traslados', 'TRANSPORTE', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(8, 1, 'Tours', 'Tours y excursiones', 'TOURS', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(9, 1, 'Eventos', 'Salonería, salones para eventos', 'EVENTOS', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795'),
+	(10, 1, 'Mantenimiento', 'Servicios internos de mantenimiento', 'MANTENIMIENTO', 1, '2026-03-19 15:17:47.334795', '2026-03-19 15:17:47.334795');
+
 -- Volcando estructura para tabla hotel.clientes
 CREATE TABLE IF NOT EXISTS `clientes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -88,6 +119,11 @@ CREATE TABLE IF NOT EXISTS `clientes` (
   `tipoVisa` varchar(255) DEFAULT NULL,
   `numeroVisa` varchar(255) DEFAULT NULL,
   `visaExpira` datetime DEFAULT NULL,
+  `tax_profile` enum('RESIDENT','FOREIGN_TOURIST','ENTITY') NOT NULL DEFAULT 'RESIDENT',
+  `tipo_documento_estandar` varchar(50) DEFAULT NULL,
+  `documento_validado` tinyint(1) NOT NULL DEFAULT 0,
+  `fecha_validacion_documento` datetime DEFAULT NULL,
+  `validado_por_usuario_id` int(11) DEFAULT NULL,
   `googleId` varchar(255) DEFAULT NULL,
   `photoUrl` varchar(255) DEFAULT NULL,
   `authProvider` varchar(255) NOT NULL DEFAULT 'local',
@@ -99,12 +135,14 @@ CREATE TABLE IF NOT EXISTS `clientes` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_28fa93cdc380ac510988890cce` (`cedula`),
   UNIQUE KEY `IDX_3cd5652ab34ca1a0a2c7a25531` (`email`),
-  UNIQUE KEY `IDX_180e285c672066d3cca2ce1a8d` (`googleId`)
+  UNIQUE KEY `IDX_180e285c672066d3cca2ce1a8d` (`googleId`),
+  KEY `IDX_clientes_tax_profile` (`tax_profile`),
+  KEY `IDX_clientes_documento_validado` (`documento_validado`,`tax_profile`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.clientes: ~0 rows (aproximadamente)
-INSERT INTO `clientes` (`id`, `cedula`, `nombre`, `apellido`, `email`, `password`, `telefono`, `tipoDocumento`, `rol`, `direccion`, `paisNacionalidad`, `paisResidencia`, `idiomaPreferido`, `fechaNacimiento`, `tipoVisa`, `numeroVisa`, `visaExpira`, `googleId`, `photoUrl`, `authProvider`, `fecha_registro`, `createdAt`, `updatedAt`, `deleted_at`, `deleted_by`) VALUES
-	(1, '50919231', 'Juan', 'Sena', 'sena@gmail.com', '$2b$10$ImXMdOFf2..dji8vwaLq3./yeVrFmg5nE82Puqdc8IxlFNR7TBk76', '', 'CC', 'cliente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'local', '2026-03-14 13:15:17.154991', '2026-03-14 13:15:17.154991', '2026-03-15 15:34:49.000000', NULL, NULL);
+INSERT INTO `clientes` (`id`, `cedula`, `nombre`, `apellido`, `email`, `password`, `telefono`, `tipoDocumento`, `rol`, `direccion`, `paisNacionalidad`, `paisResidencia`, `idiomaPreferido`, `fechaNacimiento`, `tipoVisa`, `numeroVisa`, `visaExpira`, `tax_profile`, `tipo_documento_estandar`, `documento_validado`, `fecha_validacion_documento`, `validado_por_usuario_id`, `googleId`, `photoUrl`, `authProvider`, `fecha_registro`, `createdAt`, `updatedAt`, `deleted_at`, `deleted_by`) VALUES
+	(1, '50919231', 'Juan', 'Sena', 'sena@gmail.com', '$2b$10$ImXMdOFf2..dji8vwaLq3./yeVrFmg5nE82Puqdc8IxlFNR7TBk76', '', 'CC', 'cliente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'RESIDENT', NULL, 0, NULL, NULL, NULL, NULL, 'local', '2026-03-14 13:15:17.154991', '2026-03-14 13:15:17.154991', '2026-03-15 15:34:49.000000', NULL, NULL);
 
 -- Volcando estructura para tabla hotel.detalle_facturas
 CREATE TABLE IF NOT EXISTS `detalle_facturas` (
@@ -148,6 +186,7 @@ CREATE TABLE IF NOT EXISTS `empleados` (
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `rol` varchar(255) NOT NULL,
+  `tax_profile` enum('RESIDENT','FOREIGN_TOURIST','ENTITY') NOT NULL DEFAULT 'RESIDENT',
   `estado` varchar(255) NOT NULL DEFAULT 'activo',
   `createdAt` datetime(6) NOT NULL DEFAULT current_timestamp(6),
   `updatedAt` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
@@ -155,15 +194,36 @@ CREATE TABLE IF NOT EXISTS `empleados` (
   `deleted_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_531b62206ec48fc3ba88593af3` (`cedula`),
-  UNIQUE KEY `IDX_a5c9113abdd7c58a2290208119` (`email`)
+  UNIQUE KEY `IDX_a5c9113abdd7c58a2290208119` (`email`),
+  KEY `IDX_empleados_tax_profile` (`tax_profile`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.empleados: ~4 rows (aproximadamente)
-INSERT INTO `empleados` (`id`, `id_hotel`, `cedula`, `nombre`, `apellido`, `email`, `password`, `rol`, `estado`, `createdAt`, `updatedAt`, `deleted_at`, `deleted_by`) VALUES
-	(1, NULL, '1003001750', 'Cesar', 'Urriaga', 'urriagac44@gmail.com', '$2b$10$OJ1eEny.HEuGrLI.bsDZUOVcOF9aqR/LYjyqRMBwWNuLldjfV3Msy', 'superadmin', 'activo', '2026-03-14 12:52:05.423254', '2026-03-14 13:02:41.926290', NULL, NULL),
-	(2, 1, '123456789', 'Juan', 'Sena', 'recepcionista@gmail.com', '$2b$10$wXPhbqO8u3obk4/2iKbGYO.YbCMw3bPZlUaBEcKMoBOJiz0YvTCFy', 'recepcionista', 'activo', '2026-03-14 13:13:37.300321', '2026-03-14 13:13:37.300321', NULL, NULL),
-	(3, 1, '1003001751', 'Cesar', 'Urriaga', 'admin@gmail.com', '$2b$10$2RQOr05vUfP4ikrygcpAgem0VHaeEoQtnvcHjaio/RjZgatQ0Emg2', 'admin', 'activo', '2026-03-15 11:41:23.766228', '2026-03-15 11:41:23.766228', NULL, NULL),
-	(6, 1, '234567890', 'Camilo Torres', '', 'camilo@gmail.com', '$2b$10$gR9wLTArbnDn97I4Pud5k.e9BXQL6B5k3Xm8zanMXd4.6l1R2ak96', 'cafeteria', 'activo', '2026-03-15 20:14:42.287163', '2026-03-15 20:14:42.287163', NULL, NULL);
+INSERT INTO `empleados` (`id`, `id_hotel`, `cedula`, `nombre`, `apellido`, `email`, `password`, `rol`, `tax_profile`, `estado`, `createdAt`, `updatedAt`, `deleted_at`, `deleted_by`) VALUES
+	(1, NULL, '1003001750', 'Cesar', 'Urriaga', 'urriagac44@gmail.com', '$2b$10$OJ1eEny.HEuGrLI.bsDZUOVcOF9aqR/LYjyqRMBwWNuLldjfV3Msy', 'superadmin', 'RESIDENT', 'activo', '2026-03-14 12:52:05.423254', '2026-03-14 13:02:41.926290', NULL, NULL),
+	(2, 1, '123456789', 'Juan', 'Sena', 'recepcionista@gmail.com', '$2b$10$wXPhbqO8u3obk4/2iKbGYO.YbCMw3bPZlUaBEcKMoBOJiz0YvTCFy', 'recepcionista', 'RESIDENT', 'activo', '2026-03-14 13:13:37.300321', '2026-03-14 13:13:37.300321', NULL, NULL),
+	(3, 1, '1003001751', 'Cesar', 'Urriaga', 'admin@gmail.com', '$2b$10$2RQOr05vUfP4ikrygcpAgem0VHaeEoQtnvcHjaio/RjZgatQ0Emg2', 'admin', 'RESIDENT', 'activo', '2026-03-15 11:41:23.766228', '2026-03-15 11:41:23.766228', NULL, NULL),
+	(6, 1, '234567890', 'Camilo Torres', '', 'camilo@gmail.com', '$2b$10$gR9wLTArbnDn97I4Pud5k.e9BXQL6B5k3Xm8zanMXd4.6l1R2ak96', 'cafeteria', 'RESIDENT', 'activo', '2026-03-15 20:14:42.287163', '2026-03-15 20:14:42.287163', NULL, NULL);
+
+-- Volcando estructura para tabla hotel.factura_cambios
+CREATE TABLE IF NOT EXISTS `factura_cambios` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_factura` int(11) NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `usuario_email` varchar(255) DEFAULT NULL,
+  `tipo_cambio` varchar(100) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `valor_anterior` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`valor_anterior`)),
+  `valor_nuevo` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`valor_nuevo`)),
+  `fecha` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  PRIMARY KEY (`id`),
+  KEY `IDX_factura_cambios_factura` (`id_factura`),
+  KEY `IDX_factura_cambios_usuario` (`usuario_id`),
+  KEY `IDX_factura_cambios_fecha` (`fecha`),
+  CONSTRAINT `FK_factura_cambios_factura` FOREIGN KEY (`id_factura`) REFERENCES `facturas` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.factura_cambios: ~0 rows (aproximadamente)
 
 -- Volcando estructura para tabla hotel.facturas
 CREATE TABLE IF NOT EXISTS `facturas` (
@@ -181,8 +241,11 @@ CREATE TABLE IF NOT EXISTS `facturas` (
   `porcentaje_inc` decimal(5,2) DEFAULT NULL,
   `monto_iva` decimal(12,2) NOT NULL,
   `monto_inc` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `desglose_impuestos` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`desglose_impuestos`)),
+  `desglose_monetario` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`desglose_monetario`)),
   `total` decimal(12,2) NOT NULL,
   `estado` varchar(255) NOT NULL DEFAULT 'pendiente',
+  `estado_factura` enum('BORRADOR','EDITABLE','EMITIDA','PAGADA','ANULADA') NOT NULL DEFAULT 'BORRADOR',
   `fecha_emision` datetime DEFAULT NULL,
   `fecha_vencimiento` datetime DEFAULT NULL,
   `observaciones` text DEFAULT NULL,
@@ -197,14 +260,15 @@ CREATE TABLE IF NOT EXISTS `facturas` (
   UNIQUE KEY `IDX_0e316c27f9738f9c065b08220b` (`numero_factura`),
   UNIQUE KEY `IDX_f955080f9b27de038fb57af965` (`uuid`),
   KEY `FK_8b3f69e871b3d6c02de6c6d03e5` (`id_reserva`),
+  KEY `IDX_facturas_estado_factura` (`estado_factura`),
   CONSTRAINT `FK_8b3f69e871b3d6c02de6c6d03e5` FOREIGN KEY (`id_reserva`) REFERENCES `reservas` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.facturas: ~2 rows (aproximadamente)
-INSERT INTO `facturas` (`id`, `numero_factura`, `uuid`, `id_reserva`, `id_cliente`, `nombre_cliente`, `cedula_cliente`, `email_cliente`, `id_hotel`, `subtotal`, `porcentaje_iva`, `porcentaje_inc`, `monto_iva`, `monto_inc`, `total`, `estado`, `fecha_emision`, `fecha_vencimiento`, `observaciones`, `xml_data`, `json_data`, `cufe`, `created_at`, `updated_at`, `deleted_at`, `deleted_by`) VALUES
-	(2, 'FAC-2026-00001', '5bc6f2c8-8795-49c1-849b-b964fa9f2749', 2, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 80000.00, 19.00, NULL, 15200.00, 0.00, 95200.00, 'pendiente', '2026-03-16 18:54:50', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:UUID>5bc6f2c8-8795-49c1-849b-b964fa9f2749</cbc:UUID>\n  <cbc:IssueDate>2026-03-16</cbc:IssueDate>\n  <cbc:IssueTime>23:54:50</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-16</cbc:StartDate>\n    <cbc:EndDate>2026-03-16</cbc:EndDate>\n  </cac:InvoicePeriod>\n  <cac:OrderReference>\n    <cbc:ID>FAC-2026-00001</cbc:ID>\n  </cac:OrderReference>\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID>50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">15200.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">80000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">15200.00</cbc:TaxAmount>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Percent>19</cbc:Percent>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">80000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">80000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">95200.00</cbc:TaxInclusiveAmount>\n    <cbc:PayableAmount currencyID="COP">95200.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">80000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n  <!-- AVISO: Documento generado electrónicamente -->\n  <!-- Simulación para preparación DIAN - No válido fiscalmente sin firma digital -->\n</Invoice>', '{"numeroFactura":"FAC-2026-00001","uuid":"5bc6f2c8-8795-49c1-849b-b964fa9f2749","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1}],"montos":{"subtotal":80000,"porcentajeIva":19,"montoIva":15200,"total":95200},"fechaEmision":"2026-03-16T23:54:50.166Z"}', NULL, '2026-03-16 18:54:50.182987', '2026-03-16 18:54:50.182987', NULL, NULL),
-	(3, 'FAC-2026-00003', '6ec0759c-f1b2-4806-92eb-deb899282f3a', 3, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 100000.00, 19.00, NULL, 19000.00, 0.00, 119000.00, 'pendiente', '2026-03-16 19:12:29', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:UUID>6ec0759c-f1b2-4806-92eb-deb899282f3a</cbc:UUID>\n  <cbc:IssueDate>2026-03-17</cbc:IssueDate>\n  <cbc:IssueTime>00:12:29</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-17</cbc:StartDate>\n    <cbc:EndDate>2026-03-17</cbc:EndDate>\n  </cac:InvoicePeriod>\n  <cac:OrderReference>\n    <cbc:ID>FAC-2026-00003</cbc:ID>\n  </cac:OrderReference>\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID>50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">19000.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">100000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">19000.00</cbc:TaxAmount>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Percent>19</cbc:Percent>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">100000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">100000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">119000.00</cbc:TaxInclusiveAmount>\n    <cbc:PayableAmount currencyID="COP">119000.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">80000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>2</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Agua mineral (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">5000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">5000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>3</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Café americano (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">8000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">8000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>4</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Té aromático (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">7000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">7000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n  <!-- AVISO: Documento generado electrónicamente -->\n  <!-- Simulación para preparación DIAN - No válido fiscalmente sin firma digital -->\n</Invoice>', '{"numeroFactura":"FAC-2026-00003","uuid":"6ec0759c-f1b2-4806-92eb-deb899282f3a","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Agua mineral (16/3/2026)","cantidad":1,"precioUnitario":5000,"subtotal":5000,"descuento":0,"total":5000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Café americano (16/3/2026)","cantidad":1,"precioUnitario":8000,"subtotal":8000,"descuento":0,"total":8000,"idReferencia":2},{"tipoConcepto":"servicio","descripcion":"Té aromático (16/3/2026)","cantidad":1,"precioUnitario":7000,"subtotal":7000,"descuento":0,"total":7000,"idReferencia":3}],"montos":{"subtotal":100000,"porcentajeIva":19,"montoIva":19000,"total":119000},"fechaEmision":"2026-03-17T00:12:29.453Z"}', NULL, '2026-03-16 19:12:29.456791', '2026-03-16 19:12:29.456791', NULL, NULL),
-	(9, 'FAC-2026-00004', '78c614f6-4c87-4737-9006-c468ffb86627', 4, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 115000.00, 19.00, NULL, 21850.00, 0.00, 136850.00, 'pendiente', '2026-03-17 18:56:21', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <!-- METADATOS DIAN -->\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:ProfileID>dian</cbc:ProfileID>\n  <cbc:ID>FV-FAC-2026-00004</cbc:ID>\n  <cbc:UUID>78c614f6-4c87-4737-9006-c468ffb86627</cbc:UUID>\n  <cbc:IssueDate>2026-03-17</cbc:IssueDate>\n  <cbc:IssueTime>23:56:21</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  \n  <!-- PERÍODO -->\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-17</cbc:StartDate>\n    <cbc:EndDate>2026-03-17</cbc:EndDate>\n  </cac:InvoicePeriod>\n  \n  <!-- REFERENCIA A ORDEN -->\n  <cac:OrderReference>\n    <cbc:ID>FV-FAC-2026-00004</cbc:ID>\n  </cac:OrderReference>\n  \n  <!-- PROVEEDOR (Hotel Sena) -->\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:RegistrationName>HOTEL SENA 2026</cbc:RegistrationName>\n        <cbc:CompanyID schemeID="NIT">9001234567-1</cbc:CompanyID>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n          <cbc:Name>IVA</cbc:Name>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  \n  <!-- CLIENTE (Huésped) -->\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="CC">50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  \n  <!-- TOTALES IMPUESTOS -->\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">21850.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">115000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">21850.00</cbc:TaxAmount>\n      <cbc:CalculationSequenceNumeric>1</cbc:CalculationSequenceNumeric>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Name>IVA</cbc:Name>\n        <cbc:Percent>19</cbc:Percent>\n        <cbc:TaxExemptionReasonCode>VAT_EXEMPT</cbc:TaxExemptionReasonCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n          <cbc:Name>IVA</cbc:Name>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  \n  <!-- TOTALES MONETARIOS -->\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">115000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">115000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">136850.00</cbc:TaxInclusiveAmount>\n    <cbc:PrepaidAmount currencyID="COP">0.00</cbc:PrepaidAmount>\n    <cbc:PayableAmount currencyID="COP">136850.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n  <!-- LÍNEAS DE FACTURA -->\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">80000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>2</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">5000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Agua mineral (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">5000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>3</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">8000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Café americano (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">8000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>4</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">12000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Cappuccino (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">12000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>5</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">10000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Chocolate caliente (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">10000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n  \n  <!-- NOTAS -->\n  <cbc:Note>Documento generado electrónicamente según resolución DIAN</cbc:Note>\n  <cbc:Note>⚠️ DOCUMENTO SIMULADO - No es válido fiscalmente sin Firma Digital XMLDSIG y certificado DIAN</cbc:Note>\n</Invoice>', '{"numeroFactura":"FAC-2026-00004","uuid":"78c614f6-4c87-4737-9006-c468ffb86627","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 17/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Agua mineral (17/3/2026)","cantidad":1,"precioUnitario":5000,"subtotal":5000,"descuento":0,"total":5000,"montoInc":0,"idReferencia":4},{"tipoConcepto":"servicio","descripcion":"Café americano (17/3/2026)","cantidad":1,"precioUnitario":8000,"subtotal":8000,"descuento":0,"total":8000,"montoInc":0,"idReferencia":5},{"tipoConcepto":"servicio","descripcion":"Cappuccino (17/3/2026)","cantidad":1,"precioUnitario":12000,"subtotal":12000,"descuento":0,"total":12000,"montoInc":0,"idReferencia":6},{"tipoConcepto":"servicio","descripcion":"Chocolate caliente (17/3/2026)","cantidad":1,"precioUnitario":10000,"subtotal":10000,"descuento":0,"total":10000,"montoInc":0,"idReferencia":7}],"montos":{"subtotal":115000,"montoInc":0,"porcentajeIncAplicado":null,"porcentajeIva":19,"montoIva":21850,"total":136850},"fechaEmision":"2026-03-17T23:56:21.017Z"}', NULL, '2026-03-17 18:56:21.033706', '2026-03-17 18:56:21.033706', NULL, NULL);
+INSERT INTO `facturas` (`id`, `numero_factura`, `uuid`, `id_reserva`, `id_cliente`, `nombre_cliente`, `cedula_cliente`, `email_cliente`, `id_hotel`, `subtotal`, `porcentaje_iva`, `porcentaje_inc`, `monto_iva`, `monto_inc`, `desglose_impuestos`, `desglose_monetario`, `total`, `estado`, `estado_factura`, `fecha_emision`, `fecha_vencimiento`, `observaciones`, `xml_data`, `json_data`, `cufe`, `created_at`, `updated_at`, `deleted_at`, `deleted_by`) VALUES
+	(2, 'FAC-2026-00001', '5bc6f2c8-8795-49c1-849b-b964fa9f2749', 2, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 80000.00, 19.00, NULL, 15200.00, 0.00, NULL, NULL, 95200.00, 'pendiente', 'BORRADOR', '2026-03-16 18:54:50', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:UUID>5bc6f2c8-8795-49c1-849b-b964fa9f2749</cbc:UUID>\n  <cbc:IssueDate>2026-03-16</cbc:IssueDate>\n  <cbc:IssueTime>23:54:50</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-16</cbc:StartDate>\n    <cbc:EndDate>2026-03-16</cbc:EndDate>\n  </cac:InvoicePeriod>\n  <cac:OrderReference>\n    <cbc:ID>FAC-2026-00001</cbc:ID>\n  </cac:OrderReference>\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID>50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">15200.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">80000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">15200.00</cbc:TaxAmount>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Percent>19</cbc:Percent>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">80000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">80000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">95200.00</cbc:TaxInclusiveAmount>\n    <cbc:PayableAmount currencyID="COP">95200.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">80000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n  <!-- AVISO: Documento generado electrónicamente -->\n  <!-- Simulación para preparación DIAN - No válido fiscalmente sin firma digital -->\n</Invoice>', '{"numeroFactura":"FAC-2026-00001","uuid":"5bc6f2c8-8795-49c1-849b-b964fa9f2749","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1}],"montos":{"subtotal":80000,"porcentajeIva":19,"montoIva":15200,"total":95200},"fechaEmision":"2026-03-16T23:54:50.166Z"}', NULL, '2026-03-16 18:54:50.182987', '2026-03-16 18:54:50.182987', NULL, NULL),
+	(3, 'FAC-2026-00003', '6ec0759c-f1b2-4806-92eb-deb899282f3a', 3, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 100000.00, 19.00, NULL, 19000.00, 0.00, NULL, NULL, 119000.00, 'pendiente', 'BORRADOR', '2026-03-16 19:12:29', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:UUID>6ec0759c-f1b2-4806-92eb-deb899282f3a</cbc:UUID>\n  <cbc:IssueDate>2026-03-17</cbc:IssueDate>\n  <cbc:IssueTime>00:12:29</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-17</cbc:StartDate>\n    <cbc:EndDate>2026-03-17</cbc:EndDate>\n  </cac:InvoicePeriod>\n  <cac:OrderReference>\n    <cbc:ID>FAC-2026-00003</cbc:ID>\n  </cac:OrderReference>\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID>50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">19000.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">100000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">19000.00</cbc:TaxAmount>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Percent>19</cbc:Percent>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">100000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">100000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">119000.00</cbc:TaxInclusiveAmount>\n    <cbc:PayableAmount currencyID="COP">119000.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">80000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>2</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Agua mineral (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">5000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">5000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>3</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Café americano (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">8000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">8000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>4</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cac:Item>\n        <cbc:Description>Té aromático (16/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">7000.00</cbc:PriceAmount>\n      </cac:Price>\n      <cac:LineExtensionAmount currencyID="COP">7000.00</cac:LineExtensionAmount>\n    </cac:InvoiceLine>\n  <!-- AVISO: Documento generado electrónicamente -->\n  <!-- Simulación para preparación DIAN - No válido fiscalmente sin firma digital -->\n</Invoice>', '{"numeroFactura":"FAC-2026-00003","uuid":"6ec0759c-f1b2-4806-92eb-deb899282f3a","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 16/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Agua mineral (16/3/2026)","cantidad":1,"precioUnitario":5000,"subtotal":5000,"descuento":0,"total":5000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Café americano (16/3/2026)","cantidad":1,"precioUnitario":8000,"subtotal":8000,"descuento":0,"total":8000,"idReferencia":2},{"tipoConcepto":"servicio","descripcion":"Té aromático (16/3/2026)","cantidad":1,"precioUnitario":7000,"subtotal":7000,"descuento":0,"total":7000,"idReferencia":3}],"montos":{"subtotal":100000,"porcentajeIva":19,"montoIva":19000,"total":119000},"fechaEmision":"2026-03-17T00:12:29.453Z"}', NULL, '2026-03-16 19:12:29.456791', '2026-03-16 19:12:29.456791', NULL, NULL),
+	(9, 'FAC-2026-00004', '78c614f6-4c87-4737-9006-c468ffb86627', 4, 1, 'Juan', '50919231', 'sena@gmail.com', 1, 115000.00, 19.00, NULL, 21850.00, 0.00, NULL, NULL, 136850.00, 'pendiente', 'BORRADOR', '2026-03-17 18:56:21', NULL, '', '<?xml version="1.0" encoding="UTF-8"?>\n<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"\n         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"\n         xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"\n         xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">\n  <!-- METADATOS DIAN -->\n  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>\n  <cbc:CustomizationID>05</cbc:CustomizationID>\n  <cbc:ProfileID>dian</cbc:ProfileID>\n  <cbc:ID>FV-FAC-2026-00004</cbc:ID>\n  <cbc:UUID>78c614f6-4c87-4737-9006-c468ffb86627</cbc:UUID>\n  <cbc:IssueDate>2026-03-17</cbc:IssueDate>\n  <cbc:IssueTime>23:56:21</cbc:IssueTime>\n  <cbc:InvoiceTypeCode listID="DIAN 1.0">01</cbc:InvoiceTypeCode>\n  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>\n  \n  <!-- PERÍODO -->\n  <cac:InvoicePeriod>\n    <cbc:StartDate>2026-03-17</cbc:StartDate>\n    <cbc:EndDate>2026-03-17</cbc:EndDate>\n  </cac:InvoicePeriod>\n  \n  <!-- REFERENCIA A ORDEN -->\n  <cac:OrderReference>\n    <cbc:ID>FV-FAC-2026-00004</cbc:ID>\n  </cac:OrderReference>\n  \n  <!-- PROVEEDOR (Hotel Sena) -->\n  <cac:AccountingSupplierParty>\n    <cac:Party>\n      <cbc:Name>HOTEL SENA 2026</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:PostalAddress>\n        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>\n        <cbc:CityName>Bogotá</cbc:CityName>\n        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>\n        <cac:Country>\n          <cbc:IdentificationCode>CO</cbc:IdentificationCode>\n        </cac:Country>\n      </cac:PostalAddress>\n      <cac:PartyTaxScheme>\n        <cbc:RegistrationName>HOTEL SENA 2026</cbc:RegistrationName>\n        <cbc:CompanyID schemeID="NIT">9001234567-1</cbc:CompanyID>\n        <cbc:TaxTypeCode>01</cbc:TaxTypeCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n          <cbc:Name>IVA</cbc:Name>\n        </cac:TaxScheme>\n      </cac:PartyTaxScheme>\n    </cac:Party>\n  </cac:AccountingSupplierParty>\n  \n  <!-- CLIENTE (Huésped) -->\n  <cac:AccountingCustomerParty>\n    <cac:Party>\n      <cbc:Name>Juan</cbc:Name>\n      <cac:PartyIdentification>\n        <cbc:ID schemeID="CC">50919231</cbc:ID>\n      </cac:PartyIdentification>\n      <cac:Contact>\n        <cbc:ElectronicMail>sena@gmail.com</cbc:ElectronicMail>\n      </cac:Contact>\n    </cac:Party>\n  </cac:AccountingCustomerParty>\n  \n  <!-- TOTALES IMPUESTOS -->\n  <cac:TaxTotal>\n    <cbc:TaxAmount currencyID="COP">21850.00</cbc:TaxAmount>\n    <cac:TaxSubtotal>\n      <cbc:TaxableAmount currencyID="COP">115000.00</cbc:TaxableAmount>\n      <cbc:TaxAmount currencyID="COP">21850.00</cbc:TaxAmount>\n      <cbc:CalculationSequenceNumeric>1</cbc:CalculationSequenceNumeric>\n      <cac:TaxCategory>\n        <cbc:ID>S</cbc:ID>\n        <cbc:Name>IVA</cbc:Name>\n        <cbc:Percent>19</cbc:Percent>\n        <cbc:TaxExemptionReasonCode>VAT_EXEMPT</cbc:TaxExemptionReasonCode>\n        <cac:TaxScheme>\n          <cbc:ID>01</cbc:ID>\n          <cbc:Name>IVA</cbc:Name>\n        </cac:TaxScheme>\n      </cac:TaxCategory>\n    </cac:TaxSubtotal>\n  </cac:TaxTotal>\n  \n  <!-- TOTALES MONETARIOS -->\n  <cac:LegalMonetaryTotal>\n    <cbc:LineExtensionAmount currencyID="COP">115000.00</cbc:LineExtensionAmount>\n    <cbc:TaxExclusiveAmount currencyID="COP">115000.00</cbc:TaxExclusiveAmount>\n    <cbc:TaxInclusiveAmount currencyID="COP">136850.00</cbc:TaxInclusiveAmount>\n    <cbc:PrepaidAmount currencyID="COP">0.00</cbc:PrepaidAmount>\n    <cbc:PayableAmount currencyID="COP">136850.00</cbc:PayableAmount>\n  </cac:LegalMonetaryTotal>\n  \n  <!-- LÍNEAS DE FACTURA -->\n  \n    <cac:InvoiceLine>\n      <cbc:ID>1</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">80000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Habitación 101 - 1 noche(s) (16/3/2026 al 17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">80000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>2</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">5000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Agua mineral (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">5000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>3</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">8000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Café americano (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">8000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>4</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">12000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Cappuccino (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">12000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n\n    <cac:InvoiceLine>\n      <cbc:ID>5</cbc:ID>\n      <cbc:InvoicedQuantity unitCode="EA">1</cbc:InvoicedQuantity>\n      <cbc:LineExtensionAmount currencyID="COP">10000.00</cbc:LineExtensionAmount>\n      <cac:Item>\n        <cbc:Description>Chocolate caliente (17/3/2026)</cbc:Description>\n      </cac:Item>\n      <cac:Price>\n        <cbc:PriceAmount currencyID="COP">10000.00</cbc:PriceAmount>\n      </cac:Price>\n    </cac:InvoiceLine>\n  \n  <!-- NOTAS -->\n  <cbc:Note>Documento generado electrónicamente según resolución DIAN</cbc:Note>\n  <cbc:Note>⚠️ DOCUMENTO SIMULADO - No es válido fiscalmente sin Firma Digital XMLDSIG y certificado DIAN</cbc:Note>\n</Invoice>', '{"numeroFactura":"FAC-2026-00004","uuid":"78c614f6-4c87-4737-9006-c468ffb86627","cliente":{"nombre":"Juan","cedula":"50919231","email":"sena@gmail.com"},"detalles":[{"tipoConcepto":"habitacion","descripcion":"Habitación 101 - 1 noche(s) (16/3/2026 al 17/3/2026)","cantidad":1,"precioUnitario":80000,"subtotal":80000,"descuento":0,"total":80000,"idReferencia":1},{"tipoConcepto":"servicio","descripcion":"Agua mineral (17/3/2026)","cantidad":1,"precioUnitario":5000,"subtotal":5000,"descuento":0,"total":5000,"montoInc":0,"idReferencia":4},{"tipoConcepto":"servicio","descripcion":"Café americano (17/3/2026)","cantidad":1,"precioUnitario":8000,"subtotal":8000,"descuento":0,"total":8000,"montoInc":0,"idReferencia":5},{"tipoConcepto":"servicio","descripcion":"Cappuccino (17/3/2026)","cantidad":1,"precioUnitario":12000,"subtotal":12000,"descuento":0,"total":12000,"montoInc":0,"idReferencia":6},{"tipoConcepto":"servicio","descripcion":"Chocolate caliente (17/3/2026)","cantidad":1,"precioUnitario":10000,"subtotal":10000,"descuento":0,"total":10000,"montoInc":0,"idReferencia":7}],"montos":{"subtotal":115000,"montoInc":0,"porcentajeIncAplicado":null,"porcentajeIva":19,"montoIva":21850,"total":136850},"fechaEmision":"2026-03-17T23:56:21.017Z"}', NULL, '2026-03-17 18:56:21.033706', '2026-03-17 18:56:21.033706', NULL, NULL);
 
 -- Volcando estructura para tabla hotel.habitaciones
 CREATE TABLE IF NOT EXISTS `habitaciones` (
@@ -225,16 +289,16 @@ CREATE TABLE IF NOT EXISTS `habitaciones` (
 
 -- Volcando datos para la tabla hotel.habitaciones: ~50 rows (aproximadamente)
 INSERT INTO `habitaciones` (`id`, `id_hotel`, `numero_habitacion`, `piso`, `estado`, `id_tipo_habitacion`, `fecha_actualizacion`, `imagenes`, `created_at`, `updated_at`) VALUES
-	(1, 1, '101', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(2, 1, '102', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(3, 1, '103', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(4, 1, '104', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(5, 1, '105', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(6, 1, '106', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(7, 1, '107', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(8, 1, '108', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(9, 1, '109', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
-	(10, 1, '110', '1', 'disponible', 1, NULL, NULL, '2026-03-16 18:44:25.231468', '2026-03-16 18:44:25.231468'),
+	(1, 1, '101', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(2, 1, '102', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(3, 1, '103', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(4, 1, '104', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(5, 1, '105', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(6, 1, '106', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:24.000000'),
+	(7, 1, '107', '1', 'disponible', 1, '2026-03-17 20:22:24', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:25.000000'),
+	(8, 1, '108', '1', 'disponible', 1, '2026-03-17 20:22:25', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:25.000000'),
+	(9, 1, '109', '1', 'disponible', 1, '2026-03-17 20:22:25', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:25.000000'),
+	(10, 1, '110', '1', 'disponible', 1, '2026-03-17 20:22:25', 'https://res.cloudinary.com/dlgsmttw4/image/upload/v1773796936/imghotel/nlxiteenli5eyr8ezl9d.jpg', '2026-03-16 18:44:25.231468', '2026-03-17 20:22:25.000000'),
 	(11, 1, '201', '2', 'disponible', 2, NULL, NULL, '2026-03-16 18:44:25.245088', '2026-03-16 18:44:25.245088'),
 	(12, 1, '202', '2', 'disponible', 2, NULL, NULL, '2026-03-16 18:44:25.245088', '2026-03-16 18:44:25.245088'),
 	(13, 1, '203', '2', 'disponible', 2, NULL, NULL, '2026-03-16 18:44:25.245088', '2026-03-16 18:44:25.245088'),
@@ -502,6 +566,7 @@ CREATE TABLE IF NOT EXISTS `servicios` (
   `nombre` varchar(150) NOT NULL,
   `descripcion` text DEFAULT NULL,
   `categoria` enum('cafeteria','lavanderia','spa','room_service','minibar','otros') NOT NULL DEFAULT 'otros',
+  `categoria_servicios_id` int(11) DEFAULT NULL,
   `es_alcoholico` tinyint(1) NOT NULL DEFAULT 0,
   `precio_unitario` decimal(12,2) NOT NULL,
   `unidad_medida` varchar(50) NOT NULL DEFAULT 'unidad',
@@ -513,61 +578,150 @@ CREATE TABLE IF NOT EXISTS `servicios` (
   `updated_at` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
   PRIMARY KEY (`id`),
   KEY `IDX_78f42e31050b44ccf6f2e28e07` (`categoria`),
-  KEY `IDX_cd924a156b46a432f6e906edda` (`id_hotel`)
+  KEY `IDX_cd924a156b46a432f6e906edda` (`id_hotel`),
+  KEY `IDX_servicios_categoria_servicios` (`categoria_servicios_id`),
+  CONSTRAINT `FK_servicios_categoria_servicios` FOREIGN KEY (`categoria_servicios_id`) REFERENCES `categoria_servicios` (`id`) ON DELETE SET NULL ON UPDATE NO ACTION
 ) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.servicios: ~50 rows (aproximadamente)
-INSERT INTO `servicios` (`id`, `id_hotel`, `nombre`, `descripcion`, `categoria`, `es_alcoholico`, `precio_unitario`, `unidad_medida`, `imagen_url`, `activo`, `disponible_delivery`, `disponible_recogida`, `created_at`, `updated_at`) VALUES
-	(1, 1, 'Café americano', 'Café tradicional', 'cafeteria', 0, 8000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(2, 1, 'Cappuccino', 'Café con leche', 'cafeteria', 0, 12000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(3, 1, 'Latte', 'Café latte', 'cafeteria', 0, 13000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(4, 1, 'Chocolate caliente', 'Bebida caliente', 'cafeteria', 0, 10000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(5, 1, 'Té aromático', 'Infusión natural', 'cafeteria', 0, 7000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(6, 1, 'Jugo natural', 'Jugo de frutas', 'cafeteria', 0, 9000.00, 'vaso', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(7, 1, 'Sandwich mixto', 'Jamón y queso', 'cafeteria', 0, 15000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(8, 1, 'Croissant', 'Panadería', 'cafeteria', 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(9, 1, 'Postre del día', 'Postre especial', 'cafeteria', 0, 11000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(10, 1, 'Agua mineral', 'Agua embotellada', 'cafeteria', 0, 5000.00, 'botella', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(11, 1, 'Desayuno americano', 'Huevos café pan', 'room_service', 0, 25000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(12, 1, 'Desayuno continental', 'Pan frutas café', 'room_service', 0, 22000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(13, 1, 'Almuerzo ejecutivo', 'Menú del día', 'room_service', 0, 35000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(14, 1, 'Cena gourmet', 'Cena especial', 'room_service', 0, 45000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(15, 1, 'Hamburguesa', 'Hamburguesa premium', 'room_service', 0, 30000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(16, 1, 'Pizza personal', 'Pizza individual', 'room_service', 0, 28000.00, 'unidad', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(17, 1, 'Ensalada', 'Ensalada saludable', 'room_service', 0, 20000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(18, 1, 'Sopa del día', 'Sopa caliente', 'room_service', 0, 15000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(19, 1, 'Fruta fresca', 'Fruta picada', 'room_service', 0, 12000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(20, 1, 'Bebida gaseosa', 'Refresco', 'room_service', 0, 6000.00, 'unidad', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(21, 1, 'Agua minibar', 'Agua pequeña', 'minibar', 0, 5000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(22, 1, 'Gaseosa', 'Refresco lata', 'minibar', 0, 7000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(23, 1, 'Cerveza', 'Cerveza nacional', 'minibar', 1, 9000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:24:08.741146'),
-	(24, 1, 'Chocolate', 'Snack dulce', 'minibar', 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(25, 1, 'Papas fritas', 'Snack salado', 'minibar', 0, 8000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(26, 1, 'Maní', 'Snack', 'minibar', 0, 5000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(27, 1, 'Jugo caja', 'Jugo procesado', 'minibar', 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(28, 1, 'Galletas', 'Snack dulce', 'minibar', 0, 7000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(29, 1, 'Masaje relajante', 'Masaje corporal', 'spa', 0, 90000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(30, 1, 'Masaje terapéutico', 'Masaje especializado', 'spa', 0, 120000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(31, 1, 'Sauna', 'Acceso sauna', 'spa', 0, 30000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(32, 1, 'Jacuzzi spa', 'Jacuzzi relajante', 'spa', 0, 40000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(33, 1, 'Limpieza facial', 'Tratamiento facial', 'spa', 0, 80000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(34, 1, 'Manicure', 'Cuidado uñas', 'spa', 0, 35000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(35, 1, 'Pedicure', 'Cuidado pies', 'spa', 0, 35000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(36, 1, 'Aromaterapia', 'Relajación', 'spa', 0, 50000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(37, 1, 'Lavado básico', 'Lavado ropa', 'lavanderia', 0, 25000.00, 'kg', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(38, 1, 'Lavado express', 'Lavado rápido', 'lavanderia', 0, 40000.00, 'kg', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(39, 1, 'Planchado', 'Planchado', 'lavanderia', 0, 10000.00, 'prenda', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(40, 1, 'Lavado en seco', 'Ropa delicada', 'lavanderia', 0, 30000.00, 'prenda', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(41, 1, 'Lavado cobijas', 'Cobertores', 'lavanderia', 0, 45000.00, 'unidad', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(42, 1, 'Reparación ropa', 'Arreglos', 'lavanderia', 0, 20000.00, 'prenda', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(43, 1, 'Servicio premium', 'Lavado VIP', 'lavanderia', 0, 60000.00, 'kg', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(44, 1, 'Servicio taxi', 'Transporte', 'otros', 0, 30000.00, 'viaje', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(45, 1, 'Tour ciudad', 'Guía turístico', 'otros', 0, 150000.00, 'dia', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(46, 1, 'Alquiler bicicleta', 'Bicicleta', 'otros', 0, 25000.00, 'dia', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(47, 1, 'Traslado aeropuerto', 'Transporte aeropuerto', 'otros', 0, 80000.00, 'viaje', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(48, 1, 'Impresiones', 'Documentos', 'otros', 0, 2000.00, 'hoja', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(49, 1, 'Sala reuniones', 'Sala empresarial', 'otros', 0, 100000.00, 'hora', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453'),
-	(50, 1, 'Servicio despertador', 'Wake up call', 'otros', 0, 0.00, 'servicio', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-16 19:07:35.873453');
+INSERT INTO `servicios` (`id`, `id_hotel`, `nombre`, `descripcion`, `categoria`, `categoria_servicios_id`, `es_alcoholico`, `precio_unitario`, `unidad_medida`, `imagen_url`, `activo`, `disponible_delivery`, `disponible_recogida`, `created_at`, `updated_at`) VALUES
+	(1, 1, 'Café americano', 'Café tradicional', 'cafeteria', 2, 0, 8000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(2, 1, 'Cappuccino', 'Café con leche', 'cafeteria', 2, 0, 12000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(3, 1, 'Latte', 'Café latte', 'cafeteria', 2, 0, 13000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(4, 1, 'Chocolate caliente', 'Bebida caliente', 'cafeteria', 2, 0, 10000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(5, 1, 'Té aromático', 'Infusión natural', 'cafeteria', 2, 0, 7000.00, 'taza', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(6, 1, 'Jugo natural', 'Jugo de frutas', 'cafeteria', 2, 0, 9000.00, 'vaso', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(7, 1, 'Sandwich mixto', 'Jamón y queso', 'cafeteria', 2, 0, 15000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(8, 1, 'Croissant', 'Panadería', 'cafeteria', 2, 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(9, 1, 'Postre del día', 'Postre especial', 'cafeteria', 2, 0, 11000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(10, 1, 'Agua mineral', 'Agua embotellada', 'cafeteria', 2, 0, 5000.00, 'botella', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.418773'),
+	(11, 1, 'Desayuno americano', 'Huevos café pan', 'room_service', 6, 0, 25000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(12, 1, 'Desayuno continental', 'Pan frutas café', 'room_service', 6, 0, 22000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(13, 1, 'Almuerzo ejecutivo', 'Menú del día', 'room_service', 6, 0, 35000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(14, 1, 'Cena gourmet', 'Cena especial', 'room_service', 6, 0, 45000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(15, 1, 'Hamburguesa', 'Hamburguesa premium', 'room_service', 6, 0, 30000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(16, 1, 'Pizza personal', 'Pizza individual', 'room_service', 6, 0, 28000.00, 'unidad', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(17, 1, 'Ensalada', 'Ensalada saludable', 'room_service', 6, 0, 20000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(18, 1, 'Sopa del día', 'Sopa caliente', 'room_service', 6, 0, 15000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(19, 1, 'Fruta fresca', 'Fruta picada', 'room_service', 6, 0, 12000.00, 'plato', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(20, 1, 'Bebida gaseosa', 'Refresco', 'room_service', 6, 0, 6000.00, 'unidad', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.446415'),
+	(21, 1, 'Agua minibar', 'Agua pequeña', 'minibar', 3, 0, 5000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(22, 1, 'Gaseosa', 'Refresco lata', 'minibar', 3, 0, 7000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(23, 1, 'Cerveza', 'Cerveza nacional', 'minibar', 3, 1, 9000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(24, 1, 'Chocolate', 'Snack dulce', 'minibar', 3, 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(25, 1, 'Papas fritas', 'Snack salado', 'minibar', 3, 0, 8000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(26, 1, 'Maní', 'Snack', 'minibar', 3, 0, 5000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(27, 1, 'Jugo caja', 'Jugo procesado', 'minibar', 3, 0, 6000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(28, 1, 'Galletas', 'Snack dulce', 'minibar', 3, 0, 7000.00, 'unidad', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.452679'),
+	(29, 1, 'Masaje relajante', 'Masaje corporal', 'spa', 5, 0, 90000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(30, 1, 'Masaje terapéutico', 'Masaje especializado', 'spa', 5, 0, 120000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(31, 1, 'Sauna', 'Acceso sauna', 'spa', 5, 0, 30000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(32, 1, 'Jacuzzi spa', 'Jacuzzi relajante', 'spa', 5, 0, 40000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(33, 1, 'Limpieza facial', 'Tratamiento facial', 'spa', 5, 0, 80000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(34, 1, 'Manicure', 'Cuidado uñas', 'spa', 5, 0, 35000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(35, 1, 'Pedicure', 'Cuidado pies', 'spa', 5, 0, 35000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(36, 1, 'Aromaterapia', 'Relajación', 'spa', 5, 0, 50000.00, 'sesion', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.437150'),
+	(37, 1, 'Lavado básico', 'Lavado ropa', 'lavanderia', 4, 0, 25000.00, 'kg', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(38, 1, 'Lavado express', 'Lavado rápido', 'lavanderia', 4, 0, 40000.00, 'kg', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(39, 1, 'Planchado', 'Planchado', 'lavanderia', 4, 0, 10000.00, 'prenda', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(40, 1, 'Lavado en seco', 'Ropa delicada', 'lavanderia', 4, 0, 30000.00, 'prenda', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(41, 1, 'Lavado cobijas', 'Cobertores', 'lavanderia', 4, 0, 45000.00, 'unidad', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(42, 1, 'Reparación ropa', 'Arreglos', 'lavanderia', 4, 0, 20000.00, 'prenda', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(43, 1, 'Servicio premium', 'Lavado VIP', 'lavanderia', 4, 0, 60000.00, 'kg', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.430514'),
+	(44, 1, 'Servicio taxi', 'Transporte', 'otros', 5, 0, 30000.00, 'viaje', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576'),
+	(45, 1, 'Tour ciudad', 'Guía turístico', 'otros', 8, 0, 150000.00, 'dia', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.470128'),
+	(46, 1, 'Alquiler bicicleta', 'Bicicleta', 'otros', 5, 0, 25000.00, 'dia', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576'),
+	(47, 1, 'Traslado aeropuerto', 'Transporte aeropuerto', 'otros', 5, 0, 80000.00, 'viaje', NULL, 1, 1, 0, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576'),
+	(48, 1, 'Impresiones', 'Documentos', 'otros', 5, 0, 2000.00, 'hoja', NULL, 1, 1, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576'),
+	(49, 1, 'Sala reuniones', 'Sala empresarial', 'otros', 5, 0, 100000.00, 'hora', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576'),
+	(50, 1, 'Servicio despertador', 'Wake up call', 'otros', 5, 0, 0.00, 'servicio', NULL, 1, 0, 1, '2026-03-16 19:07:35.873453', '2026-03-19 15:17:47.484576');
+
+-- Volcando estructura para tabla hotel.tax_profile_audit
+CREATE TABLE IF NOT EXISTS `tax_profile_audit` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `entidad` varchar(50) NOT NULL,
+  `id_entidad` int(11) NOT NULL,
+  `tax_profile_anterior` varchar(50) DEFAULT NULL,
+  `tax_profile_nuevo` varchar(50) NOT NULL,
+  `razon_cambio` text DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `usuario_email` varchar(255) DEFAULT NULL,
+  `fecha` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  `ip_address` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `IDX_tax_profile_audit_entidad` (`entidad`,`id_entidad`),
+  KEY `IDX_tax_profile_audit_usuario` (`usuario_id`),
+  KEY `IDX_tax_profile_audit_fecha` (`fecha`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.tax_profile_audit: ~0 rows (aproximadamente)
+
+-- Volcando estructura para tabla hotel.tax_rates
+CREATE TABLE IF NOT EXISTS `tax_rates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_hotel` int(11) NOT NULL,
+  `categoria_servicios_id` int(11) NOT NULL,
+  `tipo_impuesto` enum('IVA','INC','OTROS') NOT NULL DEFAULT 'IVA',
+  `tasa_porcentaje` decimal(5,2) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  `aplica_a_residentes` tinyint(1) NOT NULL DEFAULT 1,
+  `aplica_a_extranjeros` tinyint(1) NOT NULL DEFAULT 1,
+  `activa` tinyint(1) NOT NULL DEFAULT 1,
+  `fecha_vigencia_inicio` date NOT NULL DEFAULT curdate(),
+  `fecha_vigencia_fin` date DEFAULT NULL,
+  `notas` text DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UK_tax_rates_unique` (`id_hotel`,`categoria_servicios_id`,`tipo_impuesto`,`fecha_vigencia_fin`),
+  KEY `IDX_tax_rates_hotel` (`id_hotel`),
+  KEY `IDX_tax_rates_categoria` (`categoria_servicios_id`),
+  KEY `IDX_tax_rates_tipo_impuesto` (`tipo_impuesto`),
+  KEY `IDX_tax_rates_activa` (`activa`),
+  KEY `IDX_tax_rates_vigencia` (`fecha_vigencia_inicio`,`fecha_vigencia_fin`),
+  KEY `IDX_tax_rates_active_by_categoria` (`id_hotel`,`categoria_servicios_id`,`activa`,`fecha_vigencia_inicio`,`fecha_vigencia_fin`),
+  KEY `IDX_tax_rates_residencia` (`id_hotel`,`aplica_a_residentes`,`aplica_a_extranjeros`,`activa`),
+  CONSTRAINT `FK_tax_rates_categoria` FOREIGN KEY (`categoria_servicios_id`) REFERENCES `categoria_servicios` (`id`) ON UPDATE NO ACTION,
+  CONSTRAINT `FK_tax_rates_hotel` FOREIGN KEY (`id_hotel`) REFERENCES `hoteles` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.tax_rates: ~13 rows (aproximadamente)
+INSERT INTO `tax_rates` (`id`, `id_hotel`, `categoria_servicios_id`, `tipo_impuesto`, `tasa_porcentaje`, `descripcion`, `aplica_a_residentes`, `aplica_a_extranjeros`, `activa`, `fecha_vigencia_inicio`, `fecha_vigencia_fin`, `notas`, `created_at`, `updated_at`, `deleted_at`, `deleted_by`) VALUES
+	(1, 1, 1, 'IVA', 19.00, 'IVA Alojamiento - Residentes', 1, 0, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.351731', '2026-03-19 15:17:47.351731', NULL, NULL),
+	(2, 1, 1, 'IVA', 0.00, 'IVA Alojamiento - Extranjeros no residentes', 0, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.351731', '2026-03-19 15:17:47.351731', NULL, NULL),
+	(3, 1, 2, 'INC', 8.00, 'INC Restaurante/Cafetería - Impuesto Nacional al Consumo', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.361443', '2026-03-19 15:17:47.361443', NULL, NULL),
+	(4, 1, 3, 'IVA', 19.00, 'IVA Minibar - Productos normales (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.367604', '2026-03-19 15:17:47.367604', NULL, NULL),
+	(5, 1, 3, 'IVA', 0.00, 'IVA Minibar - Productos básicos excluidos (0%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.367604', '2026-03-19 15:17:47.367604', NULL, NULL),
+	(6, 1, 4, 'IVA', 19.00, 'IVA Lavandería (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.375771', '2026-03-19 15:17:47.375771', NULL, NULL),
+	(7, 1, 5, 'IVA', 19.00, 'IVA Spa - Servicios de bienestar (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.381374', '2026-03-19 15:17:47.381374', NULL, NULL),
+	(8, 1, 6, 'IVA', 19.00, 'IVA Room Service - Comidas sólidas (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.384580', '2026-03-19 15:17:47.384580', NULL, NULL),
+	(9, 1, 6, 'INC', 8.00, 'INC Room Service - Bebidas alcohólicas/no alcohólicas (8%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.384580', '2026-03-19 15:17:47.384580', NULL, NULL),
+	(10, 1, 7, 'IVA', 19.00, 'IVA Transporte - Traslados (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.389002', '2026-03-19 15:17:47.389002', NULL, NULL),
+	(11, 1, 8, 'IVA', 19.00, 'IVA Tours - Excursiones (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.396362', '2026-03-19 15:17:47.396362', NULL, NULL),
+	(12, 1, 9, 'IVA', 19.00, 'IVA Eventos - Salonería (19%)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.404094', '2026-03-19 15:17:47.404094', NULL, NULL),
+	(13, 1, 10, 'IVA', 0.00, 'Mantenimiento - Servicio interno (No aplica impuesto)', 1, 1, 1, '2026-03-19', NULL, NULL, '2026-03-19 15:17:47.412333', '2026-03-19 15:17:47.412333', NULL, NULL);
+
+-- Volcando estructura para tabla hotel.tax_rates_audit
+CREATE TABLE IF NOT EXISTS `tax_rates_audit` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tax_rates_id` int(11) NOT NULL,
+  `id_hotel` int(11) NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `operacion` enum('CREATE','UPDATE','DELETE') NOT NULL,
+  `tasa_anterior` decimal(5,2) DEFAULT NULL,
+  `tasa_nueva` decimal(5,2) DEFAULT NULL,
+  `razon_cambio` text DEFAULT NULL,
+  `fecha` datetime(6) NOT NULL DEFAULT current_timestamp(6),
+  PRIMARY KEY (`id`),
+  KEY `IDX_tax_rates_audit_hotel` (`id_hotel`),
+  KEY `IDX_tax_rates_audit_usuario` (`usuario_id`),
+  KEY `IDX_tax_rates_audit_fecha` (`fecha`),
+  CONSTRAINT `FK_tax_rates_audit_hotel` FOREIGN KEY (`id_hotel`) REFERENCES `hoteles` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla hotel.tax_rates_audit: ~0 rows (aproximadamente)
 
 -- Volcando estructura para tabla hotel.tipo_habitacion_amenidades
 CREATE TABLE IF NOT EXISTS `tipo_habitacion_amenidades` (
@@ -624,6 +778,7 @@ CREATE TABLE IF NOT EXISTS `tipos_habitacion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_hotel` int(11) NOT NULL,
   `nombre_tipo` varchar(255) NOT NULL,
+  `categoria_servicios_id` int(11) DEFAULT NULL,
   `descripcion` text DEFAULT NULL,
   `capacidad_personas` smallint(6) NOT NULL,
   `precio_base` decimal(12,2) DEFAULT NULL,
@@ -631,16 +786,18 @@ CREATE TABLE IF NOT EXISTS `tipos_habitacion` (
   `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
   `updated_at` datetime(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `IDX_079e1ae966fd1fdcc15efa2a35` (`nombre_tipo`)
+  UNIQUE KEY `IDX_079e1ae966fd1fdcc15efa2a35` (`nombre_tipo`),
+  KEY `IDX_tipos_habitacion_categoria_servicios` (`categoria_servicios_id`),
+  CONSTRAINT `FK_tipos_habitacion_categoria_servicios` FOREIGN KEY (`categoria_servicios_id`) REFERENCES `categoria_servicios` (`id`) ON DELETE SET NULL ON UPDATE NO ACTION
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla hotel.tipos_habitacion: ~5 rows (aproximadamente)
-INSERT INTO `tipos_habitacion` (`id`, `id_hotel`, `nombre_tipo`, `descripcion`, `capacidad_personas`, `precio_base`, `activo`, `created_at`, `updated_at`) VALUES
-	(1, 1, 'Sencilla', 'Habitación estándar para una persona', 1, 80000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-16 18:44:25.136602'),
-	(2, 1, 'Doble', 'Habitación para dos personas', 2, 120000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-16 18:44:25.136602'),
-	(3, 1, 'Ejecutiva', 'Habitación ejecutiva con escritorio', 2, 180000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-16 18:44:25.136602'),
-	(4, 1, 'Suite', 'Suite amplia con sala', 3, 250000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-16 18:44:25.136602'),
-	(5, 1, 'Penthouse', 'Habitación de lujo premium', 5, 500000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-16 18:44:25.136602');
+INSERT INTO `tipos_habitacion` (`id`, `id_hotel`, `nombre_tipo`, `categoria_servicios_id`, `descripcion`, `capacidad_personas`, `precio_base`, `activo`, `created_at`, `updated_at`) VALUES
+	(1, 1, 'Sencilla', 1, 'Habitación estándar para una persona', 1, 80000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-19 15:17:47.493226'),
+	(2, 1, 'Doble', 1, 'Habitación para dos personas', 2, 120000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-19 15:17:47.493226'),
+	(3, 1, 'Ejecutiva', 1, 'Habitación ejecutiva con escritorio', 2, 180000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-19 15:17:47.493226'),
+	(4, 1, 'Suite', 1, 'Suite amplia con sala', 3, 250000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-19 15:17:47.493226'),
+	(5, 1, 'Penthouse', 1, 'Habitación de lujo premium', 5, 500000.00, 1, '2026-03-16 18:44:25.136602', '2026-03-19 15:17:47.493226');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

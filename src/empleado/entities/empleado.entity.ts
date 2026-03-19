@@ -34,6 +34,16 @@ export class Empleado {
   @Column({ nullable: false })
   rol: string; // 'recepcionista', 'admin', etc.
 
+  // TAX PROFILE - Para cálculo de impuestos en facturas
+  @Column({
+    type: 'enum',
+    enum: ['RESIDENT', 'FOREIGN_TOURIST', 'ENTITY'],
+    default: 'RESIDENT',
+    nullable: false,
+    name: 'tax_profile',
+  })
+  taxProfile: 'RESIDENT' | 'FOREIGN_TOURIST' | 'ENTITY';
+
   @Column({ default: 'activo' })
   estado: string; // 'activo', 'inactivo'
 

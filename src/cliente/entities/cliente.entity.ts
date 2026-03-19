@@ -59,6 +59,35 @@ export class Cliente {
   @Column({ nullable: true })
   visaExpira: Date;
 
+  // TAX PROFILE - Para cálculo de impuestos en facturas
+  @Column({
+    type: 'enum',
+    enum: ['RESIDENT', 'FOREIGN_TOURIST', 'ENTITY'],
+    default: 'RESIDENT',
+    nullable: false,
+    name: 'tax_profile',
+  })
+  taxProfile: 'RESIDENT' | 'FOREIGN_TOURIST' | 'ENTITY';
+
+  @Column({ nullable: true, length: 50, name: 'tipo_documento_estandar' })
+  tipoDocumentoEstandar?: string;
+
+  @Column({ default: false, nullable: false, name: 'documento_validado' })
+  documentoValidado: boolean;
+
+  @Column({
+    nullable: true,
+    name: 'fecha_validacion_documento',
+  })
+  fechaValidacionDocumento?: Date;
+
+  @Column({
+    type: 'int',
+    nullable: true,
+    name: 'validado_por_usuario_id',
+  })
+  validadoPorUsuarioId?: number;
+
   // Google OAuth
   @Column({ nullable: true, unique: true })
   googleId: string;

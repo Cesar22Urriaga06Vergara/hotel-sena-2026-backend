@@ -18,6 +18,9 @@ import { MedioPagoModule } from './medio-pago/medio-pago.module';
 import { PagoModule } from './pago/pago.module';
 import { CommonModule } from './common/common.module';
 import { IncidenciaModule } from './incidencia/incidencia.module';
+import { CategoriaServiciosModule } from './categoria-servicios/categoria-servicios.module';
+import { TaxRatesModule } from './tax-rates/tax-rates.module';
+import { ImpuestoModule } from './impuesto/impuesto.module';
 import { AdminAccessMiddleware } from './common/middleware/admin-access.middleware';
 
 @Module({
@@ -54,6 +57,9 @@ import { AdminAccessMiddleware } from './common/middleware/admin-access.middlewa
     // Módulos de la aplicación
     CommonModule,
     IncidenciaModule,
+    CategoriaServiciosModule,
+    TaxRatesModule,
+    ImpuestoModule,
     AmenidadModule,
     HotelModule,
     TipoHabitacionModule,

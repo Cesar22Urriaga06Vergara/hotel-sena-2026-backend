@@ -18,6 +18,8 @@ import { Reserva } from '../reserva/entities/reserva.entity';
 import { Pedido } from '../servicio/entities/pedido.entity';
 import { PedidoItem } from '../servicio/entities/pedido-item.entity';
 import { Servicio } from '../servicio/entities/servicio.entity';
+import { ImpuestoService } from '../impuesto/impuesto.service';
+import { ClienteService } from '../cliente/cliente.service';
 
 @Injectable()
 export class FacturaService {
@@ -35,6 +37,9 @@ export class FacturaService {
     private dataSource: DataSource,
     @Inject(forwardRef(() => ReservaService))
     private reservaService: ReservaService,
+    private impuestoService: ImpuestoService,
+    @Inject(forwardRef(() => ClienteService))
+    private clienteService: ClienteService,
   ) {}
 
   /**
@@ -54,6 +59,63 @@ export class FacturaService {
     const ultimaFactura = facturasUltimas[0];
     const siguiente = (ultimaFactura?.id ?? 0) + 1;
     return `FAC-${año}-${String(siguiente).padStart(5, '0')}`;
+  }
+
+  /**
+   * Calcular desglose de impuestos por categoría de servicio
+   * @param detalles Detalles de la factura con categoría_servicios_id
+   * @param hotelId ID del hotel
+   * @param idCliente ID del cliente para obtener su tax_profile
+   * @returns { desgloseImpuestos, desgloseMonetario, montoIvaTotal, montoIncTotal, subtotal }
+   */
+  private async calcularDesgloseImpuestos(
+    detalles: Array<{
+      categoriaServiciosId: number;
+      subtotal: number;
+      categoriaNombre?: string;
+    }>,
+    hotelId: number,
+    idCliente: number,
+  ): Promise<{
+    desgloseImpuestos: any;
+    desgloseMonetario: any;
+    montoIvaTotal: number;
+    montoIncTotal: number;
+    subtotalTotal: number;
+  }> {
+    try {
+      // Obtener cliente para su tax_profile
+      const cliente = await this.clienteService.findOne(idCliente);
+      const taxProfile = cliente.taxProfile || 'RESIDENT';
+
+      // Usar ImpuestoService para calcular desglose
+      const calculo = await this.impuestoService.calculateFacturaDesglose(
+        detalles,
+        hotelId,
+        taxProfile,
+      );
+
+      return {
+        desgloseImpuestos: calculo.subtotalPorCategoria || null,
+        desgloseMonetario: calculo.subtotalPorCategoria || null,
+        montoIvaTotal: calculo.totales.ivaTotal,
+        montoIncTotal: calculo.totales.incTotal,
+        subtotalTotal: detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0),
+      };
+    } catch (error) {
+      // Si hay error en ImpuestoService, usar cálculo fallback simple
+      const subtotalTotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+      const montoIvaTotal = subtotalTotal * 0.19;
+      const montoIncTotal = 0;
+
+      return {
+        desgloseImpuestos: null,
+        desgloseMonetario: null,
+        montoIvaTotal,
+        montoIncTotal,
+        subtotalTotal,
+      };
+    }
   }
 
   /**
@@ -117,6 +179,7 @@ export class FacturaService {
         descuento: 0,
         total: subtotalHabitacion,
         idReferencia: reserva.idHabitacion,
+        categoriaServiciosId: 1, // Alojamiento = categoría 1
       });
 
       // 2. Líneas por servicios entregados (con INC para alcohólicos)
@@ -150,6 +213,20 @@ export class FacturaService {
           
           const servicio = serviciosMap.get(item.idServicio);
           const esAlcoholico = servicio?.esAlcoholico || false;
+          
+          // Mapear categoría según tipo de servicio
+          let categoriaServiciosId = 6; // Room Service por defecto
+          
+          if (servicio?.categoria === 'cafeteria') {
+            categoriaServiciosId = 2; // Restaurante/Cafetería
+          } else if (servicio?.categoria === 'minibar') {
+            categoriaServiciosId = 3; // Minibar
+          } else if (servicio?.categoria === 'lavanderia') {
+            categoriaServiciosId = 4; // Lavandería
+          } else if (servicio?.categoria === 'spa') {
+            categoriaServiciosId = 5; // Spa
+          }
+
           const porcentajeInc = esAlcoholico ? 8 : undefined; // INC 8% solo para alcohólicos
           const montoInc = esAlcoholico ? (subtotalServicio * 0.08) : 0;
 
@@ -164,17 +241,26 @@ export class FacturaService {
             porcentajeInc,
             montoInc,
             idReferencia: item.id,
+            categoriaServiciosId,
           });
         }
       }
 
-      // 3. Calcular totales (subtotal + INC + IVA)
-      const subtotal = detalles.reduce((sum, d) => sum + Number(d.total), 0);
-      const montoInc = detalles.reduce((sum, d) => sum + (d.montoInc || 0), 0);
-      const subtotalConInc = subtotal + montoInc; // Base gravable para IVA
-      const porcentajeIva = 19; // IVA estándar Colombia
-      const montoIva = subtotalConInc * (porcentajeIva / 100);
-      const total = subtotalConInc + montoIva;
+      // 3. Calcular desglose de impuestos usando ImpuestoService
+      // Preparar datos para cálculo (solo los campos necesarios)
+      const detallesParaCalculo = detalles.map(d => ({
+        categoriaServiciosId: d.categoriaServiciosId || 1,
+        subtotal: d.subtotal || 0,
+      }));
+
+      const { desgloseImpuestos, desgloseMonetario, montoIvaTotal, montoIncTotal, subtotalTotal } =
+        await this.calcularDesgloseImpuestos(
+          detallesParaCalculo,
+          reserva.idHotel,
+          reserva.idCliente,
+        );
+
+      const total = subtotalTotal + montoIvaTotal + montoIncTotal;
 
       // 4. Crear factura
       const factura = new Factura();
@@ -186,12 +272,19 @@ export class FacturaService {
       factura.cedulaCliente = reserva.cedulaCliente;
       factura.emailCliente = reserva.emailCliente;
       factura.idHotel = reserva.idHotel;
-      factura.subtotal = subtotal;
-      factura.montoInc = montoInc;
-      factura.porcentajeInc = montoInc > 0 ? 8 : undefined; // 8% INC si hay items alcohólicos
-      factura.porcentajeIva = porcentajeIva;
-      factura.montoIva = montoIva;
+      factura.subtotal = subtotalTotal;
+      factura.montoInc = montoIncTotal;
+      factura.porcentajeInc = montoIncTotal > 0 ? 8 : undefined;
+      factura.porcentajeIva = 19;
+      factura.montoIva = montoIvaTotal;
       factura.total = total;
+      
+      // NUEVO: Desglose de impuestos y monetario
+      factura.desgloseImpuestos = desgloseImpuestos;
+      factura.desgloseMonetario = desgloseMonetario;
+      
+      // NUEVO: Estado de factura (BORRADOR para nuevas facturas)
+      factura.estadoFactura = 'BORRADOR';
       factura.estado = 'pendiente';
       factura.observaciones = '';
       factura.fechaEmision = new Date();
@@ -207,18 +300,25 @@ export class FacturaService {
         },
         detalles,
         montos: { 
-          subtotal, 
-          montoInc,
-          porcentajeIncAplicado: montoInc > 0 ? 8 : null,
-          porcentajeIva, 
-          montoIva, 
-          total 
+          subtotal: subtotalTotal,
+          montoInc: montoIncTotal,
+          porcentajeIncAplicado: montoIncTotal > 0 ? 8 : null,
+          porcentajeIva: 19,
+          montoIva: montoIvaTotal,
+          total,
         },
+        desgloseImpuestos,
+        desgloseMonetario,
         fechaEmision: new Date().toISOString(),
       });
       
       // Preparar datos XML (simulado para preparación DIAN)
-      factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, { subtotal, porcentajeIva, montoIva, total });
+      factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, { 
+        subtotal: subtotalTotal,
+        porcentajeIva: 19,
+        montoIva: montoIvaTotal,
+        total,
+      });
 
       // 5. Guardar factura y detalles
       const facturaGuardada = await queryRunner.manager.save(factura);
@@ -354,29 +454,68 @@ export class FacturaService {
   }
 
   /**
-   * Emitir factura (cambiar estado a 'emitida')
+   * Emitir factura: Cambiar estado de BORRADOR/EDITABLE a EMITIDA
+   * Valida que la factura esté en estado permitido y registra el cambio en auditoría
    */
-  async emitir(id: number): Promise<Factura> {
+  async emitir(id: number, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    if (!['pendiente', 'pagada'].includes(factura.estado)) {
+    // Validar estado actual permitido para emisión
+    const estadosPermitidosParaEmitir = ['BORRADOR', 'EDITABLE'];
+    
+    if (!estadosPermitidosParaEmitir.includes(factura.estadoFactura)) {
       throw new BadRequestException(
-        `No se puede emitir una factura en estado ${factura.estado}`,
+        `No se puede emitir una factura en estado ${factura.estadoFactura}. ` +
+        `Estados permitidos: ${estadosPermitidosParaEmitir.join(', ')}`,
       );
     }
 
-    factura.estado = 'emitida';
+    // Registrar cambio anterior
+    const estadoAnterior = factura.estadoFactura;
+    
+    // Cambiar estado y establecer fechas
+    factura.estadoFactura = 'EMITIDA';
+    factura.estado = 'emitida'; // Mantener compatibilidad con campo antiguo
     factura.fechaEmision = new Date();
     factura.fechaVencimiento = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
 
-    return this.facturaRepository.save(factura);
+    // Guardar cambios
+    const facturaActualizada = await this.facturaRepository.save(factura);
+
+    // Registrar en auditoría
+    try {
+      const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+      await FacturaCambiosRepo.save({
+        idFactura: id,
+        usuarioId,
+        tipoCambio: 'CAMBIO_ESTADO',
+        descripcion: `Factura emitida - Cambio de estado ${estadoAnterior} → EMITIDA`,
+        valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
+        valorNuevo: JSON.stringify({ estadoFactura: 'EMITIDA', fechaEmision: factura.fechaEmision }),
+        fecha: new Date(),
+      });
+    } catch (error) {
+      console.warn('Error al registrar emisión en auditoría:', error);
+    }
+
+    return facturaActualizada;
   }
 
   /**
-   * Anular factura
+   * Anular factura: Cambiar estado a ANULADA
+   * Solo permite anular desde estados BORRADOR, EDITABLE, o EMITIDA
+   * No se puede anular si ya tiene pagos completados
    */
-  async anular(id: number, motivo: string): Promise<Factura> {
+  async anular(id: number, motivo: string, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
+
+    // No se puede anular desde estados finales
+    const estadosFinales = ['PAGADA', 'ANULADA'];
+    if (estadosFinales.includes(factura.estadoFactura)) {
+      throw new BadRequestException(
+        `No se puede anular una factura en estado final: ${factura.estadoFactura}`,
+      );
+    }
 
     // No se puede anular si ya tiene pagos completados
     const pagosCompletados = factura.pagos?.filter(
@@ -389,29 +528,319 @@ export class FacturaService {
       );
     }
 
-    factura.estado = 'anulada';
-    factura.observaciones = `ANULADA: ${motivo}`;
+    // Validar que el motivo no esté vacío
+    if (!motivo || motivo.trim() === '') {
+      throw new BadRequestException(
+        'Debe proporcionar un motivo para anular la factura',
+      );
+    }
 
-    return this.facturaRepository.save(factura);
+    // Registrar estado anterior
+    const estadoAnterior = factura.estadoFactura;
+
+    // Cambiar estado
+    factura.estadoFactura = 'ANULADA';
+    factura.estado = 'anulada'; // Mantener compatibilidad con campo antiguo
+    factura.observaciones = `ANULADA [${new Date().toLocaleString('es-CO')}]: ${motivo}`;
+
+    // Guardar cambios
+    const facturaActualizada = await this.facturaRepository.save(factura);
+
+    // Registrar en auditoría
+    try {
+      const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+      await FacturaCambiosRepo.save({
+        idFactura: id,
+        usuarioId,
+        tipoCambio: 'CAMBIO_ESTADO',
+        descripcion: `Factura anulada - Cambio de estado ${estadoAnterior} → ANULADA. Motivo: ${motivo}`,
+        valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
+        valorNuevo: JSON.stringify({ 
+          estadoFactura: 'ANULADA', 
+          observaciones: factura.observaciones 
+        }),
+        fecha: new Date(),
+      });
+    } catch (error) {
+      console.warn('Error al registrar anulación en auditoría:', error);
+    }
+
+    return facturaActualizada;
   }
 
   /**
-   * Actualizar factura (datos globales, no detalles)
+   * Marcar factura como pagada: Cambiar estado a PAGADA
+   * Solo se puede marcar como pagada desde estado EMITIDA
    */
-  async update(id: number, dto: UpdateFacturaDto): Promise<Factura> {
+  async marcarComoPagada(id: number, fechaPago?: Date, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    if (dto.estado) {
+    // Validar que esté en estado EMITIDA
+    if (factura.estadoFactura !== 'EMITIDA') {
+      throw new BadRequestException(
+        `No se puede marcar como pagada una factura en estado ${factura.estadoFactura}. ` +
+        `Solo se pueden pagar facturas en estado EMITIDA`,
+      );
+    }
+
+    // Verificar que tenga al menos un pago registrado
+    const poseePageos = factura.pagos && factura.pagos.length > 0;
+    if (!poseePageos) {
+      throw new BadRequestException(
+        'Debe registrar al menos un pago antes de marcar la factura como pagada',
+      );
+    }
+
+    // Registrar estado anterior
+    const estadoAnterior = factura.estadoFactura;
+    const fechaPagoReal = fechaPago || new Date();
+
+    // Cambiar estado
+    factura.estadoFactura = 'PAGADA';
+    factura.estado = 'pagada'; // Mantener compatibilidad con campo antiguo
+    factura.fechaVencimiento = fechaPagoReal;
+
+    // Guardar cambios
+    const facturaActualizada = await this.facturaRepository.save(factura);
+
+    // Registrar en auditoría
+    try {
+      const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+      await FacturaCambiosRepo.save({
+        idFactura: id,
+        usuarioId,
+        tipoCambio: 'CAMBIO_ESTADO',
+        descripcion: `Factura marcada como pagada - Cambio de estado ${estadoAnterior} → PAGADA`,
+        valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
+        valorNuevo: JSON.stringify({ 
+          estadoFactura: 'PAGADA',
+          fechaPago: fechaPagoReal,
+        }),
+        fecha: new Date(),
+      });
+    } catch (error) {
+      console.warn('Error al registrar pago en auditoría:', error);
+    }
+
+    return facturaActualizada;
+  }
+
+  /**
+   * Actualizar factura con validaciones de estado y auditoría
+   * 
+   * Máquina de estados:
+   * BORRADOR -> EDITABLE | EMITIDA | ANULADA
+   * EDITABLE -> EMITIDA | BORRADOR | ANULADA
+   * EMITIDA -> PAGADA | ANULADA
+   * PAGADA -> (final, no se puede cambiar)
+   * ANULADA -> (final, no se puede cambiar)
+   * 
+   * @param id ID de la factura
+   * @param dto UpdateFacturaDto con campos a actualizar
+   * @param usuarioId (opcional) ID del usuario que hace la actualización (para auditoría)
+   * @returns Factura actualizada
+   */
+  async update(
+    id: number,
+    dto: UpdateFacturaDto,
+    usuarioId?: number,
+  ): Promise<Factura> {
+    const factura = await this.findOne(id);
+
+    // Validar transiciones de estado permitidas según máquina de estados
+    if (dto.estadoFactura) {
+      const estadoActual = factura.estadoFactura;
+      const estadoNuevo = dto.estadoFactura;
+
+      const transicionesPermitidas: {
+        [key: string]: string[];
+      } = {
+        BORRADOR: ['EDITABLE', 'EMITIDA', 'ANULADA'],
+        EDITABLE: ['EMITIDA', 'BORRADOR', 'ANULADA'],
+        EMITIDA: ['PAGADA', 'ANULADA'],
+        PAGADA: [], // Estado final
+        ANULADA: [], // Estado final
+      };
+
+      if (
+        !transicionesPermitidas[estadoActual]?.includes(estadoNuevo)
+      ) {
+        throw new BadRequestException(
+          `No se puede cambiar de estado ${estadoActual} a ${estadoNuevo}. ` +
+          `Transiciones permitidas: ${transicionesPermitidas[estadoActual]?.join(', ') || 'ninguna'}`,
+        );
+      }
+
+      // Solo permitir cambios de montos en estados BORRADOR y EDITABLE
+      if (
+        (dto.montoIva !== undefined ||
+          dto.montoInc !== undefined ||
+          dto.subtotal !== undefined) &&
+        !['BORRADOR', 'EDITABLE'].includes(estadoActual)
+      ) {
+        throw new BadRequestException(
+          `No se pueden actualizar montos en estado ${estadoActual}. ` +
+          `Solo está permitido en BORRADOR o EDITABLE.`,
+        );
+      }
+    }
+
+    // Validar que no se edite factura pagada o anulada
+    if (['PAGADA', 'ANULADA'].includes(factura.estadoFactura)) {
+      throw new BadRequestException(
+        `No se puede editar una factura en estado ${factura.estadoFactura}`,
+      );
+    }
+
+    // Grabar valores antiguos para auditoría
+    const cambios: Array<{
+      campo: string;
+      valorAnterior: any;
+      valorNuevo: any;
+    }> = [];
+
+    // Actualizar campos permitidos y registrar cambios
+    if (dto.estado !== undefined && dto.estado !== factura.estado) {
+      cambios.push({
+        campo: 'estado',
+        valorAnterior: factura.estado,
+        valorNuevo: dto.estado,
+      });
       factura.estado = dto.estado;
     }
-    if (dto.observaciones) {
+
+    if (dto.estadoFactura !== undefined && dto.estadoFactura !== factura.estadoFactura) {
+      cambios.push({
+        campo: 'estadoFactura',
+        valorAnterior: factura.estadoFactura,
+        valorNuevo: dto.estadoFactura,
+      });
+      factura.estadoFactura = dto.estadoFactura;
+    }
+
+    if (dto.observaciones !== undefined && dto.observaciones !== factura.observaciones) {
+      cambios.push({
+        campo: 'observaciones',
+        valorAnterior: factura.observaciones,
+        valorNuevo: dto.observaciones,
+      });
       factura.observaciones = dto.observaciones;
     }
-    if (dto.cufe) {
+
+    if (dto.cufe !== undefined && dto.cufe !== factura.cufe) {
+      cambios.push({
+        campo: 'cufe',
+        valorAnterior: factura.cufe,
+        valorNuevo: dto.cufe,
+      });
       factura.cufe = dto.cufe;
     }
 
-    return this.facturaRepository.save(factura);
+    // Si se actualiza montos específicamente, registrar cambios
+    if (dto.subtotal !== undefined && dto.subtotal !== factura.subtotal) {
+      cambios.push({
+        campo: 'subtotal',
+        valorAnterior: factura.subtotal,
+        valorNuevo: dto.subtotal,
+      });
+      factura.subtotal = dto.subtotal;
+    }
+
+    if (dto.montoIva !== undefined && dto.montoIva !== factura.montoIva) {
+      cambios.push({
+        campo: 'montoIva',
+        valorAnterior: factura.montoIva,
+        valorNuevo: dto.montoIva,
+      });
+      factura.montoIva = dto.montoIva;
+    }
+
+    if (dto.montoInc !== undefined && dto.montoInc !== factura.montoInc) {
+      cambios.push({
+        campo: 'montoInc',
+        valorAnterior: factura.montoInc,
+        valorNuevo: dto.montoInc,
+      });
+      factura.montoInc = dto.montoInc;
+    }
+
+    // Si hay cambios en detalles (via DTO), marcar para recálculo
+    if (dto.recalcularImpuestos === true) {
+      // Necesita se implementado refetch de detalles y recálculo vía ImpuestoService
+      // Por ahora, solo marcar que se pide recálculo
+      cambios.push({
+        campo: 'recalcularImpuestos',
+        valorAnterior: false,
+        valorNuevo: true,
+      });
+    }
+
+    // Guardar factura actualizada
+    const facturaActualizada = await this.facturaRepository.save(factura);
+
+    // Registrar cambios en auditoría (si hay cambios y tenemos repositorio FacturaCambios)
+    if (cambios.length > 0) {
+      try {
+        const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+        await FacturaCambiosRepo.save({
+          idFactura: id,
+          usuarioId,
+          usuarioEmail: null, // Se puede enriquecer si se pasa usuario objeto completo
+          tipoCambio: 'ACTUALIZACIÓN',
+          descripcion: `Se actualizaron los campos: ${cambios.map((c) => c.campo).join(', ')}`,
+          valorAnterior: JSON.stringify(
+            cambios.reduce((acc, c) => {
+              acc[c.campo] = c.valorAnterior;
+              return acc;
+            }, {}),
+          ),
+          valorNuevo: JSON.stringify(
+            cambios.reduce((acc, c) => {
+              acc[c.campo] = c.valorNuevo;
+              return acc;
+            }, {}),
+          ),
+          fecha: new Date(),
+        });
+      } catch (error) {
+        // Log pero no fallar si hay error en auditoría
+        console.warn('Error al registrar cambios en auditoría:', error);
+      }
+    }
+
+    return facturaActualizada;
+  }
+
+  /**
+   * Obtener el historial de cambios (auditoría) de una factura
+   * Retorna todos los cambios registrados en la tabla FacturaCambios
+   * Ordenados por fecha descendente (más recientes primero)
+   */
+  async obtenerHistorialCambios(idFactura: number): Promise<any[]> {
+    try {
+      const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+      
+      const cambios = await FacturaCambiosRepo.find({
+        where: { idFactura },
+        order: { fecha: 'DESC' },
+      });
+
+      // Enriquecer cambios con información legible
+      return cambios.map((cambio) => ({
+        id: cambio.id,
+        idFactura: cambio.idFactura,
+        usuarioId: cambio.usuarioId,
+        tipoCambio: cambio.tipoCambio,
+        descripcion: cambio.descripcion,
+        valorAnterior: cambio.valorAnterior ? JSON.parse(cambio.valorAnterior) : null,
+        valorNuevo: cambio.valorNuevo ? JSON.parse(cambio.valorNuevo) : null,
+        fecha: cambio.fecha,
+        fechaFormateada: new Date(cambio.fecha).toLocaleString('es-CO'),
+      }));
+    } catch (error) {
+      console.warn('Error al obtener historial de cambios:', error);
+      return [];
+    }
   }
 
   /**

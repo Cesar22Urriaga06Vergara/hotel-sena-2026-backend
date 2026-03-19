@@ -32,7 +32,9 @@ export class DetalleFactura {
   // ID del recurso de origen (idServicio, idPedido, etc.) — nullable para cargos manuales
   @Column({ name: 'id_referencia', nullable: true })
   idReferencia: number;
-
+  // NUEVO: Categoría de servicio para cálculo de impuestos
+  @Column({ name: 'categoria_servicios_id', nullable: true })
+  categoriaServiciosId?: number;
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   cantidad: number;
 

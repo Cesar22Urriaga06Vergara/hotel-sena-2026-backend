@@ -77,6 +77,45 @@ export class Factura {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   total: number;
 
+  // NUEVO: Desglose de impuestos por categoría (JSON)
+  // Ej: { "IVA": {"ALOJAMIENTO": 250000, "RESTAURANTE": 50000}, "INC": {"RESTAURANTE": 30000} }
+  @Column({
+    name: 'desglose_impuestos',
+    type: 'json',
+    nullable: true,
+  })
+  desgloseImpuestos?: {
+    [tipoImpuesto: string]: {
+      [categoria: string]: number;
+    };
+  };
+
+  // NUEVO: Desglose monetario (totales y subtotales por categoría)
+  // Ej: { "ALOJAMIENTO": {subtotal, iva, total}, "RESTAURANTE": {...} }
+  @Column({
+    name: 'desglose_monetario',
+    type: 'json',
+    nullable: true,
+  })
+  desgloseMonetario?: {
+    [categoria: string]: {
+      subtotal: number;
+      iva: number;
+      inc: number;
+      total: number;
+    };
+  };
+
+  // NUEVO: Estado detallado de la factura (BORRADOR, EDITABLE, EMITIDA, PAGADA, ANULADA)
+  @Column({
+    name: 'estado_factura',
+    type: 'enum',
+    enum: ['BORRADOR', 'EDITABLE', 'EMITIDA', 'PAGADA', 'ANULADA'],
+    default: 'BORRADOR',
+    nullable: false,
+  })
+  estadoFactura: 'BORRADOR' | 'EDITABLE' | 'EMITIDA' | 'PAGADA' | 'ANULADA';
+
   // Estado: 'pendiente' | 'pagada' | 'anulada' | 'emitida'
   @Column({ default: 'pendiente' })
   estado: string;
