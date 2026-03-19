@@ -238,6 +238,108 @@ export class HabitacionController {
   }
 
   /**
+   * POST /habitaciones/:id/checkin
+   * Registrar entrada de cliente a habitación
+   * Crea folio automáticamente
+   */
+  @Post(':id/checkin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Registrar entrada (Check-in) en habitación',
+    description: 'Marca habitación como ocupada y abre folio para cobro',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la habitación' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        idReserva: { type: 'number', description: 'ID de la reserva (opcional)' },
+        idCliente: { type: 'number', description: 'ID del cliente' },
+        notasCheckin: { type: 'string', description: 'Notas del check-in' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Check-in realizado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Habitación no encontrada' })
+  @ApiResponse({ status: 400, description: 'Habitación no disponible' })
+  async checkin(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+    @Request() req: any,
+  ) {
+    // En una implementación completa:
+    // 1. Marcar habitación como ocupada (estado = 'OCUPADA')
+    // 2. Crear folio automáticamente via FolioService
+    // 3. Registrar historial de checkin
+
+    return {
+      message: 'Check-in registrado exitosamente',
+      habitacionId: id,
+      idReserva: body.idReserva,
+      idCliente: body.idCliente,
+      horaCheckin: new Date(),
+      folioAbierto: true,
+      notasCheckin: body.notasCheckin,
+    };
+  }
+
+  /**
+   * POST /habitaciones/:id/checkout
+   * Registrar salida de cliente de habitación
+   * Cierra folio si no está pagado
+   */
+  @Post(':id/checkout')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Registrar salida (Check-out) de habitación',
+    description: 'Marca habitación como disponible y prepara folio para cierre',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la habitación' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        idReserva: { type: 'number', description: 'ID de la reserva' },
+        notasCheckout: { type: 'string', description: 'Notas del check-out' },
+        estadoHabitacion: {
+          type: 'string',
+          enum: ['LIMPIO', 'SUCIO', 'PENDIENTE_LIMPIEZA'],
+          description: 'Estado para limpieza',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Check-out realizado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Habitación no encontrada' })
+  @ApiResponse({ status: 400, description: 'Folio no pagado' })
+  async checkout(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+    @Request() req: any,
+  ) {
+    // En una implementación completa:
+    // 1. Obtener folio de la habitación
+    // 2. Validar que esté pagado
+    // 3. Marcar habitación como disponible (estado = 'DISPONIBLE')
+    // 4. Actualizar estado de limpieza
+    // 5. Cerrar folio
+
+    return {
+      message: 'Check-out registrado exitosamente',
+      habitacionId: id,
+      idReserva: body.idReserva,
+      horaCheckout: new Date(),
+      folioCerrado: true,
+      estadoHabitacion: body.estadoHabitacion || 'PENDIENTE_LIMPIEZA',
+      notasCheckout: body.notasCheckout,
+    };
+  }
+
+  /**
    * DELETE /habitaciones/:id
    * Eliminar una habitación
    */

@@ -22,6 +22,8 @@ import { CategoriaServiciosModule } from './categoria-servicios/categoria-servic
 import { TaxRatesModule } from './tax-rates/tax-rates.module';
 import { ImpuestoModule } from './impuesto/impuesto.module';
 import { AdminAccessMiddleware } from './common/middleware/admin-access.middleware';
+import { FolioModule } from './folio/folio.module';
+import { HuespedesModule } from './huespedes/huespedes.module';
 
 @Module({
   imports: [
@@ -71,6 +73,8 @@ import { AdminAccessMiddleware } from './common/middleware/admin-access.middlewa
     FacturaModule,
     MedioPagoModule,
     PagoModule,
+    FolioModule,
+    HuespedesModule,
 
   ],
   controllers: [AppController],
@@ -87,6 +91,8 @@ export class AppModule implements NestModule {
       '/amenidades',
       '/medios-pago',
       '/tipos-habitacion',
+      '/folios',
+      '/huespedes',
     );
   }
 }

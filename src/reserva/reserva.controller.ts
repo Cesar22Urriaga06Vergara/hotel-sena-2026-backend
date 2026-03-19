@@ -39,18 +39,32 @@ export class ReservaController {
 
   /**
    * GET /reservas
-   * Obtener todas las reservas del sistema (solo superadmin)
+   * Obtener todas las reservas (recepcionista/admin solo su hotel, superadmin todas)
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('superadmin')
+  @Roles('recepcionista', 'admin', 'superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todas las reservas del sistema' })
   @ApiResponse({ status: 200, description: 'Reservas obtenidas exitosamente' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  @ApiResponse({ status: 403, description: 'Acceso denegado - solo superadmin' })
-  async findAll(): Promise<{ reservas: Reserva[]; count: number }> {
-    const reservas = await this.reservaService.findAll();
+  @ApiResponse({ status: 403, description: 'Acceso denegado' })
+  async findAll(@Request() req): Promise<{ reservas: Reserva[]; count: number }> {
+    const userRole = req.user.rol;
+    const userIdHotel = req.user.idHotel;
+
+    // Admin/Recepcionista solo ven sus hoteles
+    if ((userRole === 'admin' || userRole === 'recepcionista') && !userIdHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    let reservas: Reserva[];
+    if (userRole === 'superadmin') {
+      reservas = await this.reservaService.findAll();
+    } else {
+      reservas = await this.reservaService.findByHotel(userIdHotel);
+    }
+
     return {
       reservas,
       count: reservas.length,
@@ -92,10 +106,11 @@ export class ReservaController {
 
   /**
    * POST /reservas
-   * Crear una nueva reserva (PROTEGIDA)
+   * Crear una nueva reserva (PROTEGIDA - clientes y staff pueden crear)
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('cliente', 'recepcionista', 'admin', 'superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear una nueva reserva' })
   @ApiBody({ type: CreateReservaDto })
@@ -103,6 +118,7 @@ export class ReservaController {
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @ApiResponse({ status: 409, description: 'No hay disponibilidad' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Acceso denegado' })
   async create(@Body() createReservaDto: CreateReservaDto, @Request() req): Promise<Reserva> {
     const userRole = req.user.rol;
     const userIdHotel = req.user.idHotel;
@@ -342,7 +358,8 @@ export class ReservaController {
    * - Superadmin cualquiera
    */
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('cliente', 'recepcionista', 'admin', 'superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Actualizar una reserva' })
   @ApiParam({ name: 'id', type: Number })
