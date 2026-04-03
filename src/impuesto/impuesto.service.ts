@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TaxRate } from 'src/tax-rates/entities/tax-rate.entity';
@@ -22,6 +22,24 @@ export interface TaxCalculationResult {
     otrosTotal: number;
     total: number;
   };
+}
+
+export interface LineaImpuestosInput {
+  subtotal: number;
+  categoriaServiciosId: number;
+  hotelId: number;
+  taxProfile: 'RESIDENT' | 'FOREIGN_TOURIST' | 'ENTITY';
+}
+
+export interface LineaImpuestosResult {
+  iva: number;
+  inc: number;
+  total: number;
+  appliedTaxes: Array<{
+    tipoImpuesto: 'IVA' | 'INC' | 'OTROS';
+    tasaPorcentaje: number;
+    monto: number;
+  }>;
 }
 
 @Injectable()
@@ -77,6 +95,58 @@ export class ImpuestoService {
     return parseFloat(((baseAmount * taxPercentage) / 100).toFixed(2));
   }
 
+  // FIX: Cálculo tributario por línea (item), sin agregación previa por categoría
+  async calculateLineaImpuestos(
+    input: LineaImpuestosInput,
+  ): Promise<LineaImpuestosResult> {
+    const subtotal = Number(input.subtotal || 0);
+    if (subtotal < 0) {
+      throw new BadRequestException('El subtotal de la línea no puede ser negativo');
+    }
+
+    const taxRates = await this.getTaxRatesForCategoria(
+      input.hotelId,
+      input.categoriaServiciosId,
+      input.taxProfile,
+    );
+
+    let iva = 0;
+    let inc = 0;
+    const appliedTaxes: LineaImpuestosResult['appliedTaxes'] = [];
+
+    for (const rate of taxRates) {
+      const monto = this.calculateTaxAmount(subtotal, Number(rate.tasaPorcentaje));
+
+      if (rate.tipoImpuesto === 'IVA') {
+        iva = parseFloat((iva + monto).toFixed(2));
+      } else if (rate.tipoImpuesto === 'INC') {
+        inc = parseFloat((inc + monto).toFixed(2));
+      }
+
+      appliedTaxes.push({
+        tipoImpuesto: rate.tipoImpuesto,
+        tasaPorcentaje: Number(rate.tasaPorcentaje),
+        monto,
+      });
+    }
+
+    // FIX: Validación explícita de conflicto tributario en una misma línea
+    if (iva > 0 && inc > 0) {
+      throw new BadRequestException(
+        `Conflicto tributario en línea (categoría ${input.categoriaServiciosId}): no se permite aplicar IVA e INC simultáneamente`,
+      );
+    }
+
+    const total = parseFloat((subtotal + iva + inc).toFixed(2));
+
+    return {
+      iva: parseFloat(iva.toFixed(2)),
+      inc: parseFloat(inc.toFixed(2)),
+      total,
+      appliedTaxes,
+    };
+  }
+
   /**
    * Calcula los impuestos para un detalle de factura
    * @param monto Base (sin impuestos)
@@ -91,34 +161,21 @@ export class ImpuestoService {
     hotelId: number,
     taxProfile: 'RESIDENT' | 'FOREIGN_TOURIST' | 'ENTITY',
   ): Promise<{ iva: number; inc: number; otros: number }> {
-    const taxRates = await this.getTaxRatesForCategoria(
-      hotelId,
+    const linea = await this.calculateLineaImpuestos({
+      subtotal: monto,
       categoriaServiciosId,
+      hotelId,
       taxProfile,
-    );
+    });
 
-    const result = {
-      iva: 0,
-      inc: 0,
-      otros: 0,
-    };
-
-    for (const rate of taxRates) {
-      const taxAmount = this.calculateTaxAmount(monto, rate.tasaPorcentaje);
-
-      if (rate.tipoImpuesto === 'IVA') {
-        result.iva += taxAmount;
-      } else if (rate.tipoImpuesto === 'INC') {
-        result.inc += taxAmount;
-      } else {
-        result.otros += taxAmount;
-      }
-    }
+    const otros = linea.appliedTaxes
+      .filter((t) => t.tipoImpuesto === 'OTROS')
+      .reduce((sum, t) => sum + Number(t.monto), 0);
 
     return {
-      iva: parseFloat(result.iva.toFixed(2)),
-      inc: parseFloat(result.inc.toFixed(2)),
-      otros: parseFloat(result.otros.toFixed(2)),
+      iva: parseFloat(linea.iva.toFixed(2)),
+      inc: parseFloat(linea.inc.toFixed(2)),
+      otros: parseFloat(otros.toFixed(2)),
     };
   }
 
@@ -148,47 +205,57 @@ export class ImpuestoService {
       },
     };
 
-    // Agrupar detalles por categoría
-    const detallesPorCategoria: {
-      [key: number]: { subtotal: number; nombre?: string };
-    } = {};
-
+    // FIX: cálculo por línea y agregación posterior para compatibilidad
     for (const detalle of detalles) {
-      if (!detallesPorCategoria[detalle.categoriaServiciosId]) {
-        detallesPorCategoria[detalle.categoriaServiciosId] = {
-          subtotal: 0,
-          nombre: detalle.categoriaNombre || `Categoría ${detalle.categoriaServiciosId}`,
-        };
-      }
-      detallesPorCategoria[detalle.categoriaServiciosId].subtotal +=
-        detalle.subtotal;
-    }
-
-    // Calcular impuestos por categoría
-    for (const [catId, { subtotal, nombre }] of Object.entries(
-      detallesPorCategoria,
-    )) {
-      const categoryId = parseInt(catId);
-      const taxes = await this.calculateDetailTaxes(
-        subtotal,
-        categoryId,
+      const linea = await this.calculateLineaImpuestos({
+        subtotal: detalle.subtotal,
+        categoriaServiciosId: detalle.categoriaServiciosId,
         hotelId,
         taxProfile,
+      });
+
+      const categoriaNombre =
+        detalle.categoriaNombre || `Categoría ${detalle.categoriaServiciosId}`;
+
+      if (!result.subtotalPorCategoria[categoriaNombre]) {
+        result.subtotalPorCategoria[categoriaNombre] = {
+          monto: 0,
+          iva: 0,
+          inc: 0,
+          otros: 0,
+          total: 0,
+        };
+      }
+
+      result.subtotalPorCategoria[categoriaNombre].monto = parseFloat(
+        (result.subtotalPorCategoria[categoriaNombre].monto + Number(detalle.subtotal)).toFixed(2),
+      );
+      result.subtotalPorCategoria[categoriaNombre].iva = parseFloat(
+        (result.subtotalPorCategoria[categoriaNombre].iva + linea.iva).toFixed(2),
+      );
+      result.subtotalPorCategoria[categoriaNombre].inc = parseFloat(
+        (result.subtotalPorCategoria[categoriaNombre].inc + linea.inc).toFixed(2),
       );
 
-      const categoryTotal = subtotal + taxes.iva + taxes.inc + taxes.otros;
+      const otrosLinea = linea.appliedTaxes
+        .filter((t) => t.tipoImpuesto === 'OTROS')
+        .reduce((sum, t) => sum + Number(t.monto), 0);
 
-      result.subtotalPorCategoria[nombre || `Categoría ${categoryId}`] = {
-        monto: parseFloat(subtotal.toFixed(2)),
-        iva: taxes.iva,
-        inc: taxes.inc,
-        otros: taxes.otros,
-        total: parseFloat(categoryTotal.toFixed(2)),
-      };
+      result.subtotalPorCategoria[categoriaNombre].otros = parseFloat(
+        (result.subtotalPorCategoria[categoriaNombre].otros + otrosLinea).toFixed(2),
+      );
+      result.subtotalPorCategoria[categoriaNombre].total = parseFloat(
+        (
+          result.subtotalPorCategoria[categoriaNombre].monto +
+          result.subtotalPorCategoria[categoriaNombre].iva +
+          result.subtotalPorCategoria[categoriaNombre].inc +
+          result.subtotalPorCategoria[categoriaNombre].otros
+        ).toFixed(2),
+      );
 
-      result.iva += taxes.iva;
-      result.inc += taxes.inc;
-      result.otros += taxes.otros;
+      result.iva = parseFloat((result.iva + linea.iva).toFixed(2));
+      result.inc = parseFloat((result.inc + linea.inc).toFixed(2));
+      result.otros = parseFloat((result.otros + otrosLinea).toFixed(2));
     }
 
     // Calcular totales

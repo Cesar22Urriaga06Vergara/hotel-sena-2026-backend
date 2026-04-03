@@ -14,6 +14,20 @@ export class HabitacionService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  private normalizarImagenes(habitacion: Habitacion): Habitacion {
+    const imagenesUrls = (habitacion.imagenes || '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    (habitacion as Habitacion & { imagenesUrls: string[] }).imagenesUrls = imagenesUrls;
+    return habitacion;
+  }
+
+  private normalizarImagenesLista(habitaciones: Habitacion[]): Habitacion[] {
+    return habitaciones.map((habitacion) => this.normalizarImagenes(habitacion));
+  }
+
   async create(
     createHabitacionDto: CreateHabitacionDto,
   ): Promise<Habitacion> {
@@ -21,14 +35,17 @@ export class HabitacionService {
       ...createHabitacionDto,
       estado: createHabitacionDto.estado || 'disponible',
     });
-    return await this.habitacionRepository.save(habitacion);
+    const creada = await this.habitacionRepository.save(habitacion);
+    return this.normalizarImagenes(creada);
   }
 
   async findAll(): Promise<Habitacion[]> {
-    return await this.habitacionRepository.find({
+    const habitaciones = await this.habitacionRepository.find({
       relations: ['tipoHabitacion', 'tipoHabitacion.amenidades'],
       order: { numeroHabitacion: 'ASC' },
     });
+
+    return this.normalizarImagenesLista(habitaciones);
   }
 
   async findByHotel(idHotel: number, soloDisponibles: boolean = false): Promise<Habitacion[]> {
@@ -36,19 +53,23 @@ export class HabitacionService {
     if (soloDisponibles) {
       whereCondition.estado = 'disponible';
     }
-    return await this.habitacionRepository.find({
+    const habitaciones = await this.habitacionRepository.find({
       where: whereCondition,
       relations: ['tipoHabitacion', 'tipoHabitacion.amenidades'],
       order: { numeroHabitacion: 'ASC' },
     });
+
+    return this.normalizarImagenesLista(habitaciones);
   }
 
   async findByTipo(idTipoHabitacion: number): Promise<Habitacion[]> {
-    return await this.habitacionRepository.find({
+    const habitaciones = await this.habitacionRepository.find({
       where: { idTipoHabitacion },
       relations: ['tipoHabitacion', 'tipoHabitacion.amenidades'],
       order: { numeroHabitacion: 'ASC' },
     });
+
+    return this.normalizarImagenesLista(habitaciones);
   }
 
   async findOne(id: number): Promise<Habitacion> {
@@ -61,14 +82,15 @@ export class HabitacionService {
       throw new NotFoundException(`Habitación con ID ${id} no encontrada`);
     }
     
-    return habitacion;
+    return this.normalizarImagenes(habitacion);
   }
 
   async update(id: number, updateHabitacionDto: UpdateHabitacionDto): Promise<Habitacion> {
     const habitacion = await this.findOne(id);
     Object.assign(habitacion, updateHabitacionDto);
     habitacion.fechaActualizacion = new Date();
-    return await this.habitacionRepository.save(habitacion);
+    const actualizada = await this.habitacionRepository.save(habitacion);
+    return this.normalizarImagenes(actualizada);
   }
 
   async remove(id: number): Promise<void> {

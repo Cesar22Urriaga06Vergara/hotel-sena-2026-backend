@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Delete, Post, Param, ParseIntPipe, Body } from '@nestjs/common';
+import { Controller, Get, UseGuards, Delete, Post, Patch, Param, ParseIntPipe, Body, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -101,6 +101,46 @@ export class UsuariosController {
       user: result,
     };
   }
-}
 
+  /**
+   * GET /users/:id
+   * Obtener un usuario por ID
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener usuario por ID' })
+  @ApiResponse({ status: 200, description: 'Usuario encontrado' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  async getUserById(@Param('id', ParseIntPipe) id: number) {
+    const user = await this.authService.findUserById(id);
+    return {
+      message: 'Usuario obtenido exitosamente',
+      user,
+    };
+  }
+
+  /**
+   * PATCH /users/:id
+   * Actualizar nombre y rol de un usuario
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
+  @Patch(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Actualizar usuario' })
+  @ApiResponse({ status: 200, description: 'Usuario actualizado' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  async updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { fullName?: string; role?: string; isActive?: boolean },
+  ) {
+    const user = await this.authService.updateUser(id, body);
+    return {
+      message: 'Usuario actualizado exitosamente',
+      user,
+    };
+  }
+}
 

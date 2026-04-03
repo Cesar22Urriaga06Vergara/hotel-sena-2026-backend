@@ -319,12 +319,14 @@ export class ServicioService {
       .orderBy('p.fechaPedido', 'DESC');
 
     // Si no se especifica estado, excluir entregado y cancelado por defecto
-    if (!estado) {
+    if (!estado || estado === 'activos') {
       query.andWhere('p.estadoPedido NOT IN (:...estados)', {
         estados: ['entregado', 'cancelado'],
       });
-    } else {
+    } else if (estado !== 'todos') {
       query.andWhere('p.estadoPedido = :estado', { estado });
+    } else {
+      // estado=todos: no aplicar filtro adicional
     }
 
     return await query.getMany();
@@ -457,7 +459,7 @@ export class ServicioService {
         fechaInicio = new Date(ahora.getFullYear(), 0, 1);
       }
 
-      query.andWhere('pedido.createdAt >= :fechaInicio', { fechaInicio });
+      query.andWhere('pedido.fechaPedido >= :fechaInicio', { fechaInicio });
     }
 
     const pedidos = await query.getMany();
@@ -588,12 +590,14 @@ export class ServicioService {
       .orderBy('p.fechaPedido', 'DESC');
 
     // Si no se especifica estado, excluir entregado y cancelado por defecto
-    if (!estado) {
+    if (!estado || estado === 'activos') {
       query.andWhere('p.estadoPedido NOT IN (:...estados)', {
         estados: ['entregado', 'cancelado'],
       });
-    } else {
+    } else if (estado !== 'todos') {
       query.andWhere('p.estadoPedido = :estado', { estado });
+    } else {
+      // estado=todos: no aplicar filtro adicional
     }
 
     const pedidos = await query.getMany();

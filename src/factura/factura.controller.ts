@@ -32,11 +32,46 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Factura } from './entities/factura.entity';
+import {
+  ESTADOS_FACTURA,
+  TRANSICIONES_FACTURA,
+  MAPA_ESTADO_LEGADO_A_CANONICO,
+} from '../common/constants/estados.constants';
 
 @ApiTags('Facturas')
 @Controller('facturas')
 export class FacturaController {
   constructor(private readonly facturaService: FacturaService) {}
+
+  /**
+   * GET /facturas/catalogo/estados
+   * Catálogo de estados de factura con transiciones permitidas
+   */
+  @Get('catalogo/estados')
+  @ApiOperation({ summary: 'Catálogo de estados canónicos de factura con transiciones' })
+  @ApiResponse({ status: 200, description: 'Catálogo obtenido' })
+  getCatalogoEstados() {
+    const etiquetas: Record<string, string> = {
+      BORRADOR: 'Borrador',
+      EDITABLE: 'Editable',
+      EMITIDA: 'Emitida',
+      PAGADA: 'Pagada',
+      ANULADA: 'Anulada',
+    };
+
+    const estados = Object.values(ESTADOS_FACTURA).map((valor) => ({
+      valor,
+      etiqueta: etiquetas[valor] ?? valor,
+      transicionesPermitidas: TRANSICIONES_FACTURA[valor],
+    }));
+
+    return {
+      estados,
+      mapaLegado: MAPA_ESTADO_LEGADO_A_CANONICO,
+      campoCanónico: 'estadoFactura',
+      campoLegado: 'estado',
+    };
+  }
 
   /**
    * POST /facturas/generar/:idReserva
@@ -54,10 +89,7 @@ export class FacturaController {
   async generarDesdeReserva(
     @Param('idReserva', ParseIntPipe) idReserva: number,
   ): Promise<Factura> {
-    // En una aplicación real, verificaríamos que la reserva existe
-    // Por ahora, asumimos que la lógica del servicio maneja eso
-    const reserva = { id: idReserva } as any;
-    return this.facturaService.generarDesdeReserva(reserva);
+    return this.facturaService.generarDesdeReservaId(idReserva);
   }
 
   /**
@@ -73,11 +105,13 @@ export class FacturaController {
   @ApiOperation({ summary: 'Obtener todas las facturas' })
   @ApiQuery({ name: 'idHotel', type: Number, required: false })
   @ApiQuery({ name: 'estado', type: String, required: false })
+  @ApiQuery({ name: 'estadoFactura', type: String, required: false })
   @ApiQuery({ name: 'idCliente', type: Number, required: false })
   @ApiResponse({ status: 200, description: 'Facturas obtenidas exitosamente' })
   async findAll(
     @Query('idHotel') idHotel?: string,
     @Query('estado') estado?: string,
+    @Query('estadoFactura') estadoFactura?: string,
     @Query('idCliente') idCliente?: string,
     @Request() req?: any,
   ): Promise<Factura[]> {
@@ -93,6 +127,7 @@ export class FacturaController {
       const filters = {
         idHotel: userIdHotel,
         estado,
+        estadoFactura,
         idCliente: idCliente ? Number(idCliente) : undefined,
       };
       return this.facturaService.findAll(filters);
@@ -102,6 +137,7 @@ export class FacturaController {
     const filters = {
       idHotel: idHotel ? Number(idHotel) : undefined,
       estado,
+      estadoFactura,
       idCliente: idCliente ? Number(idCliente) : undefined,
     };
 

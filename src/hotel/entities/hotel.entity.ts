@@ -38,6 +38,9 @@ export class Hotel {
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
+  @Column({ type: 'enum', enum: ['activo', 'suspendido'], default: 'activo' })
+  estado: 'activo' | 'suspendido';
+
   @CreateDateColumn({ name: 'fecha_registro' })
   fechaRegistro: Date;
 

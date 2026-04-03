@@ -51,19 +51,16 @@ export class ClienteService {
   /**
    * Obtener clientes de un hotel específico
    * (Clientes que tienen al menos una reserva en ese hotel)
-   * 
-   * NOTA: En una implementación completa, esto requeriría
-   * una query con JOIN a la tabla 'reservas' para obtener
-   * clientes únicos del hotel.
-   * 
-   * Por ahora retorna todos los clientes (implementar JOIN después)
    */
   async findAllByHotel(idHotel: number): Promise<Cliente[]> {
-    // TODO: Implementar query con JOIN a reservas
-    // SELECT DISTINCT c.* FROM clientes c
-    // INNER JOIN reservas r ON c.id = r.id_cliente
-    // WHERE r.id_hotel = :idHotel
-    return await this.clienteRepository.find();
+    return await this.clienteRepository
+      .createQueryBuilder('cliente')
+      .innerJoin('reservas', 'reserva', 'reserva.id_cliente = cliente.id')
+      .where('reserva.id_hotel = :idHotel', { idHotel })
+      .distinct(true)
+      .orderBy('cliente.nombre', 'ASC')
+      .addOrderBy('cliente.apellido', 'ASC')
+      .getMany();
   }
 
   /**

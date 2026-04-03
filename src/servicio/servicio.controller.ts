@@ -42,6 +42,24 @@ import { HotelReportConsolidadoDto } from './dto/hotel-reporte-consolidado.dto';
 export class ServicioController {
   constructor(private readonly servicioService: ServicioService) {}
 
+  private validarAccesoHotel(user: any, idHotel: number): void {
+    if (!user) {
+      throw new ForbiddenException('Usuario no autenticado');
+    }
+
+    if (user.rol === 'superadmin') {
+      return;
+    }
+
+    if (!user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    if (Number(user.idHotel) !== Number(idHotel)) {
+      throw new ForbiddenException('No tienes autorización para acceder a datos de otro hotel');
+    }
+  }
+
   // ── ENDPOINTS DEL CATÁLOGO DE SERVICIOS ──
 
   @Post('catalogo')
@@ -148,7 +166,10 @@ export class ServicioController {
     @Param('idHotel') idHotel: number,
     @Param('categoria') categoria: string,
     @Query('estado') estado?: string,
+    @Req() req?: any,
   ): Promise<PedidoAreaResponseDto[]> {
+    this.validarAccesoHotel(req?.user, idHotel);
+
     return await this.servicioService.obtenerPedidosAreaOperacional(
       idHotel,
       categoria,
@@ -172,6 +193,8 @@ export class ServicioController {
     @Query('hasta') hasta?: string,
     @Req() req?: any,
   ) {
+    this.validarAccesoHotel(req?.user, idHotel);
+
     // Parsear fechas si se proporcionan
     const fechaDesde = desde ? new Date(desde) : undefined;
     const fechaHasta = hasta ? new Date(hasta) : undefined;
@@ -209,6 +232,8 @@ export class ServicioController {
     @Query('hasta') hasta?: string,
     @Req() req?: any,
   ): Promise<HotelReportConsolidadoDto> {
+    this.validarAccesoHotel(req?.user, idHotel);
+
     // Parsear fechas
     const fechaDesde = desde ? new Date(desde) : undefined;
     const fechaHasta = hasta ? new Date(hasta) : undefined;
@@ -325,6 +350,8 @@ export class ServicioController {
     @Query('periodo') periodo?: 'mes_actual' | 'trimestre_actual' | 'anio_actual',
     @Req() req?: any,
   ): Promise<any> {
+    this.validarAccesoHotel(req?.user, idHotel);
+
     return await this.servicioService.getEstadisticasPedidos(idHotel, periodo);
   }
 }

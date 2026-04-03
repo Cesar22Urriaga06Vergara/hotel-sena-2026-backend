@@ -83,39 +83,63 @@ export class FacturaService {
     montoIncTotal: number;
     subtotalTotal: number;
   }> {
-    try {
-      // Obtener cliente para su tax_profile
-      const cliente = await this.clienteService.findOne(idCliente);
-      const taxProfile = cliente.taxProfile || 'RESIDENT';
+    // FIX: sin fallback 19%, cálculo por línea y agregación posterior
+    const cliente = await this.clienteService.findOne(idCliente);
+    const taxProfile = cliente.taxProfile || 'RESIDENT';
 
-      // Usar ImpuestoService para calcular desglose
-      const calculo = await this.impuestoService.calculateFacturaDesglose(
-        detalles,
+    const subtotalTotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+    let montoIvaTotal = 0;
+    let montoIncTotal = 0;
+    const desgloseMonetario: Record<string, { subtotal: number; iva: number; inc: number; total: number }> = {};
+
+    for (const detalle of detalles) {
+      const categoriaNombre =
+        detalle.categoriaNombre || `Categoría ${detalle.categoriaServiciosId}`;
+
+      const tax = await this.impuestoService.calculateLineaImpuestos({
+        subtotal: Number(detalle.subtotal || 0),
+        categoriaServiciosId: detalle.categoriaServiciosId,
         hotelId,
         taxProfile,
+      });
+
+      if (!desgloseMonetario[categoriaNombre]) {
+        desgloseMonetario[categoriaNombre] = {
+          subtotal: 0,
+          iva: 0,
+          inc: 0,
+          total: 0,
+        };
+      }
+
+      desgloseMonetario[categoriaNombre].subtotal = parseFloat(
+        (desgloseMonetario[categoriaNombre].subtotal + Number(detalle.subtotal || 0)).toFixed(2),
+      );
+      desgloseMonetario[categoriaNombre].iva = parseFloat(
+        (desgloseMonetario[categoriaNombre].iva + tax.iva).toFixed(2),
+      );
+      desgloseMonetario[categoriaNombre].inc = parseFloat(
+        (desgloseMonetario[categoriaNombre].inc + tax.inc).toFixed(2),
+      );
+      desgloseMonetario[categoriaNombre].total = parseFloat(
+        (
+          desgloseMonetario[categoriaNombre].subtotal +
+          desgloseMonetario[categoriaNombre].iva +
+          desgloseMonetario[categoriaNombre].inc
+        ).toFixed(2),
       );
 
-      return {
-        desgloseImpuestos: calculo.subtotalPorCategoria || null,
-        desgloseMonetario: calculo.subtotalPorCategoria || null,
-        montoIvaTotal: calculo.totales.ivaTotal,
-        montoIncTotal: calculo.totales.incTotal,
-        subtotalTotal: detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0),
-      };
-    } catch (error) {
-      // Si hay error en ImpuestoService, usar cálculo fallback simple
-      const subtotalTotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
-      const montoIvaTotal = subtotalTotal * 0.19;
-      const montoIncTotal = 0;
-
-      return {
-        desgloseImpuestos: null,
-        desgloseMonetario: null,
-        montoIvaTotal,
-        montoIncTotal,
-        subtotalTotal,
-      };
+      montoIvaTotal = parseFloat((montoIvaTotal + tax.iva).toFixed(2));
+      montoIncTotal = parseFloat((montoIncTotal + tax.inc).toFixed(2));
     }
+
+    return {
+      desgloseImpuestos: desgloseMonetario,
+      desgloseMonetario,
+      montoIvaTotal,
+      montoIncTotal,
+      subtotalTotal,
+    };
   }
 
   /**
@@ -205,26 +229,17 @@ export class FacturaService {
         servicios.forEach(s => serviciosMap.set(s.id, s));
       }
 
-      // Procesar items con mapeo de categoría
+      // Procesar items usando categoría fiscal persistida en servicio
       for (const pedido of pedidosEntregados) {
         for (const item of pedido.items) {
           const subtotalServicio =
             Number(item.cantidad) * Number(item.precioUnitarioSnapshot);
-          
-          // Mapear categoría según tipo de servicio
-          let categoriaServiciosId = 2; // Default: Cafetería/Restaurante
+
+          // FIX: evitar lógica basada en strings; usar idCategoriaServicios del servicio
+          let categoriaServiciosId = 2;
           const servicio = serviciosMap.get(item.idServicio);
-          
-          if (servicio?.categoria === 'cafeteria') {
-            categoriaServiciosId = 2;
-          } else if (servicio?.categoria === 'minibar') {
-            categoriaServiciosId = 3;
-          } else if (servicio?.categoria === 'lavanderia') {
-            categoriaServiciosId = 4;
-          } else if (servicio?.categoria === 'spa') {
-            categoriaServiciosId = 5;
-          } else if (servicio?.categoria === 'room_service') {
-            categoriaServiciosId = 6;
+          if (servicio?.idCategoriaServicios) {
+            categoriaServiciosId = Number(servicio.idCategoriaServicios);
           }
 
           detalles.push({
@@ -241,27 +256,75 @@ export class FacturaService {
         }
       }
 
-      // Calcular desglose de impuestos por categoría usando ImpuestoService
-      const detallesParaCalculo = detalles.map(d => ({
-        categoriaServiciosId: d.categoriaServiciosId || 1,
-        subtotal: d.subtotal || 0,
-      }));
-
       // Obtener tax profile del cliente
       const cliente = await this.clienteService.findOne(reserva.idCliente);
       const taxProfile = cliente?.taxProfile || 'RESIDENT';
 
-      const taxCalculation = await this.impuestoService.calculateFacturaDesglose(
-        detallesParaCalculo,
-        reserva.idHotel,
-        taxProfile,
-      );
+      // FIX: cálculo tributario por cada línea
+      let montoIvaTotal = 0;
+      let montoIncTotal = 0;
+      let porcentajeIvaAplicado: number | undefined;
+      let porcentajeIncAplicado: number | undefined;
+      const desgloseFormateado: Record<string, any> = {};
 
-      // Extraer totales de la respuesta
-      const montoIvaTotal = taxCalculation.totales.ivaTotal;
-      const montoIncTotal = taxCalculation.totales.incTotal;
+      for (const detalle of detalles) {
+        const tax = await this.impuestoService.calculateLineaImpuestos({
+          subtotal: Number(detalle.subtotal || 0),
+          categoriaServiciosId: Number(detalle.categoriaServiciosId || 1),
+          hotelId: reserva.idHotel,
+          taxProfile,
+        });
+
+        const ivaRate = tax.appliedTaxes.find((t) => t.tipoImpuesto === 'IVA');
+        const incRate = tax.appliedTaxes.find((t) => t.tipoImpuesto === 'INC');
+
+        if (ivaRate && porcentajeIvaAplicado === undefined) {
+          porcentajeIvaAplicado = Number(ivaRate.tasaPorcentaje);
+        }
+
+        if (incRate && porcentajeIncAplicado === undefined) {
+          porcentajeIncAplicado = Number(incRate.tasaPorcentaje);
+        }
+
+        // FIX: reflejar impuestos reales de la línea
+        (detalle as any).montoIva = tax.iva;
+        detalle.montoInc = tax.inc;
+        detalle.porcentajeInc = incRate ? Number(incRate.tasaPorcentaje) : undefined;
+        detalle.total = tax.total;
+
+        montoIvaTotal = parseFloat((montoIvaTotal + tax.iva).toFixed(2));
+        montoIncTotal = parseFloat((montoIncTotal + tax.inc).toFixed(2));
+
+        const categoria = this.obtenerNombreCategoria(Number(detalle.categoriaServiciosId || 1));
+        if (!desgloseFormateado[categoria]) {
+          desgloseFormateado[categoria] = {
+            subtotal: 0,
+            iva: 0,
+            inc: 0,
+            total: 0,
+          };
+        }
+
+        desgloseFormateado[categoria].subtotal = parseFloat(
+          (desgloseFormateado[categoria].subtotal + Number(detalle.subtotal || 0)).toFixed(2),
+        );
+        desgloseFormateado[categoria].iva = parseFloat(
+          (desgloseFormateado[categoria].iva + tax.iva).toFixed(2),
+        );
+        desgloseFormateado[categoria].inc = parseFloat(
+          (desgloseFormateado[categoria].inc + tax.inc).toFixed(2),
+        );
+        desgloseFormateado[categoria].total = parseFloat(
+          (
+            desgloseFormateado[categoria].subtotal +
+            desgloseFormateado[categoria].iva +
+            desgloseFormateado[categoria].inc
+          ).toFixed(2),
+        );
+      }
+
       const subtotalTotal = detalles.reduce((sum, d) => sum + (d.subtotal || 0), 0);
-      const total = taxCalculation.totales.total;
+      const total = parseFloat((subtotalTotal + montoIvaTotal + montoIncTotal).toFixed(2));
 
       // Crear factura con valores calculados correctamente
       const factura = new Factura();
@@ -275,26 +338,14 @@ export class FacturaService {
       factura.idHotel = reserva.idHotel;
       factura.subtotal = subtotalTotal;
       factura.montoIva = montoIvaTotal;
-      factura.porcentajeIva = 19;
+      factura.porcentajeIva = porcentajeIvaAplicado ?? 0;
       factura.montoInc = montoIncTotal;
-      factura.porcentajeInc = montoIncTotal > 0 ? 8 : undefined;
+      factura.porcentajeInc = porcentajeIncAplicado;
       factura.total = total;
       factura.estadoFactura = 'BORRADOR';
       factura.estado = 'pendiente';
       factura.observaciones = '';
       factura.fechaEmision = new Date();
-      
-      // Desglose detallado por categoría
-      // Transformar formato de taxCalculation para que coincida con la entidad
-      const desgloseFormateado: Record<string, any> = {};
-      for (const [categoria, valores] of Object.entries(taxCalculation.subtotalPorCategoria)) {
-        desgloseFormateado[categoria] = {
-          subtotal: (valores as any).monto,
-          iva: (valores as any).iva,
-          inc: (valores as any).inc,
-          total: (valores as any).total,
-        };
-      }
       
       factura.desgloseImpuestos = desgloseFormateado;
       factura.desgloseMonetario = desgloseFormateado;
@@ -314,24 +365,27 @@ export class FacturaService {
           cantidad: d.cantidad,
           precioUnitario: d.precioUnitario,
           subtotal: d.subtotal,
+          iva: (d as any).montoIva || 0,
+          inc: d.montoInc || 0,
+          total: d.total,
           categoria: this.obtenerNombreCategoria(d.categoriaServiciosId || 1),
         })),
         montos: {
           subtotal: subtotalTotal,
           iva: montoIvaTotal,
-          porcentajeIva: 19,
+          porcentajeIva: factura.porcentajeIva,
           inc: montoIncTotal,
-          porcentajeInc: montoIncTotal > 0 ? 8 : null,
+          porcentajeInc: factura.porcentajeInc || null,
           total,
         },
-        desgloseImpuestos: taxCalculation.subtotalPorCategoria,
+        desgloseImpuestos: desgloseFormateado,
         fechaEmision: new Date().toISOString(),
       });
       
       // Preparar datos XML (simulado para preparación DIAN)
       factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, { 
         subtotal: subtotalTotal,
-        porcentajeIva: 19,
+        porcentajeIva: factura.porcentajeIva || 0,
         montoIva: montoIvaTotal,
         total,
       });
@@ -373,11 +427,21 @@ export class FacturaService {
   }
 
   /**
+   * Generar factura a partir del ID de reserva
+   * Carga la reserva completa antes de delegar el cálculo
+   */
+  async generarDesdeReservaId(idReserva: number): Promise<Factura> {
+    const reserva = await this.reservaService.findOne(idReserva);
+    return this.generarDesdeReserva(reserva);
+  }
+
+  /**
    * Obtener todas las facturas con filtros opcionales
    */
   async findAll(filters?: {
     idHotel?: number;
     estado?: string;
+    estadoFactura?: string;
     idCliente?: number;
   }): Promise<Factura[]> {
     let query = this.facturaRepository.createQueryBuilder('f');
@@ -386,11 +450,35 @@ export class FacturaService {
       query = query.where('f.idHotel = :idHotel', { idHotel: filters.idHotel });
     }
 
+    const estadosFacturaValidos = ['BORRADOR', 'EDITABLE', 'EMITIDA', 'PAGADA', 'ANULADA'];
+
+    if (filters?.estadoFactura) {
+      const estadoFacturaUpper = String(filters.estadoFactura).toUpperCase();
+      if (estadosFacturaValidos.includes(estadoFacturaUpper)) {
+        if (filters?.idHotel) {
+          query = query.andWhere('f.estadoFactura = :estadoFactura', { estadoFactura: estadoFacturaUpper });
+        } else {
+          query = query.where('f.estadoFactura = :estadoFactura', { estadoFactura: estadoFacturaUpper });
+        }
+      }
+    }
+
     if (filters?.estado) {
-      if (filters?.idHotel) {
-        query = query.andWhere('f.estado = :estado', { estado: filters.estado });
+      const estadoInput = String(filters.estado);
+      const estadoUpper = estadoInput.toUpperCase();
+
+      if (estadosFacturaValidos.includes(estadoUpper)) {
+        if (filters?.idHotel || filters?.estadoFactura) {
+          query = query.andWhere('f.estadoFactura = :estadoFacturaAlias', { estadoFacturaAlias: estadoUpper });
+        } else {
+          query = query.where('f.estadoFactura = :estadoFacturaAlias', { estadoFacturaAlias: estadoUpper });
+        }
       } else {
-        query = query.where('f.estado = :estado', { estado: filters.estado });
+        if (filters?.idHotel || filters?.estadoFactura) {
+          query = query.andWhere('f.estado = :estado', { estado: estadoInput });
+        } else {
+          query = query.where('f.estado = :estado', { estado: estadoInput });
+        }
       }
     }
 
@@ -404,6 +492,7 @@ export class FacturaService {
 
     query = query.leftJoinAndSelect('f.detalles', 'detalles');
     query = query.leftJoinAndSelect('f.pagos', 'pagos');
+    query = query.leftJoinAndSelect('pagos.medioPago', 'medioPago');
     query = query.leftJoinAndSelect('f.reserva', 'reserva');
     query = query.orderBy('f.createdAt', 'DESC');
 
@@ -416,7 +505,7 @@ export class FacturaService {
   async findOne(id: number): Promise<Factura> {
     const factura = await this.facturaRepository.findOne({
       where: { id },
-      relations: ['detalles', 'pagos', 'reserva'],
+      relations: ['detalles', 'pagos', 'pagos.medioPago', 'reserva'],
     });
 
     if (!factura) {
@@ -432,7 +521,7 @@ export class FacturaService {
   async findByReserva(idReserva: number): Promise<Factura> {
     const factura = await this.facturaRepository.findOne({
       where: { idReserva },
-      relations: ['detalles', 'pagos', 'reserva'],
+      relations: ['detalles', 'pagos', 'pagos.medioPago', 'reserva'],
     });
 
     if (!factura) {

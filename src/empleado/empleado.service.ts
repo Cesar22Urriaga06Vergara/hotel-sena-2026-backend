@@ -41,6 +41,13 @@ export class EmpleadoService {
     return await this.empleadoRepository.find();
   }
 
+  async findAllByHotel(idHotel: number): Promise<Empleado[]> {
+    return await this.empleadoRepository.find({
+      where: { id_hotel: idHotel },
+      order: { nombre: 'ASC', apellido: 'ASC' },
+    });
+  }
+
   async findById(id: number): Promise<Empleado> {
     const empleado = await this.empleadoRepository.findOne({
       where: { id },

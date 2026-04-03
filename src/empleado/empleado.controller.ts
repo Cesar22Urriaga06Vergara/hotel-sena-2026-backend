@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
+  Request,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -45,8 +47,16 @@ export class EmpleadoController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todos los empleados' })
   @ApiResponse({ status: 200, description: 'Lista de empleados' })
-  findAll(): Promise<Empleado[]> {
-    return this.empleadoService.findAll();
+  findAll(@Request() req: any): Promise<Empleado[]> {
+    if (req.user.rol === 'superadmin') {
+      return this.empleadoService.findAll();
+    }
+
+    if (!req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    return this.empleadoService.findAllByHotel(req.user.idHotel);
   }
 
   @Get(':id')

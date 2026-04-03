@@ -464,4 +464,94 @@ export class AuthService {
       refreshToken: null,
     };
   }
+
+  /**
+   * Obtener un usuario por ID (busca en empleados y clientes)
+   */
+  async findUserById(userId: number) {
+    try {
+      const empleado = await this.empleadoService.findById(userId);
+      return {
+        _id: empleado.id.toString(),
+        id: empleado.id,
+        name: `${empleado.nombre} ${empleado.apellido}`,
+        fullName: `${empleado.nombre} ${empleado.apellido}`,
+        email: empleado.email,
+        role: empleado.rol.toLowerCase(),
+        isActive: empleado.estado === 'activo',
+        idEmpleado: empleado.id,
+        idHotel: empleado.id_hotel,
+        createdAt: empleado.createdAt,
+        updatedAt: empleado.updatedAt,
+      };
+    } catch {
+      const cliente = await this.clienteService.findOne(userId);
+      return {
+        _id: cliente.id.toString(),
+        id: cliente.id,
+        name: `${cliente.nombre} ${cliente.apellido}`,
+        fullName: `${cliente.nombre} ${cliente.apellido}`,
+        email: cliente.email,
+        role: 'cliente',
+        isActive: true,
+        idCliente: cliente.id,
+        createdAt: cliente.createdAt,
+        updatedAt: cliente.updatedAt,
+      };
+    }
+  }
+
+  /**
+   * Actualizar un usuario por ID
+   * Para empleados: permite cambiar nombre y rol
+   * Para clientes: solo permite cambiar nombre
+   */
+  async updateUser(userId: number, data: { fullName?: string; role?: string; isActive?: boolean }) {
+    try {
+      const empleado = await this.empleadoService.findById(userId);
+      const parts = (data.fullName || `${empleado.nombre} ${empleado.apellido}`).trim().split(' ');
+      const nombre = parts[0];
+      const apellido = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+      const updatePayload: any = { nombre, apellido };
+      if (data.role) updatePayload.rol = data.role;
+      if (data.isActive !== undefined) {
+        updatePayload.estado = data.isActive ? 'activo' : 'inactivo';
+      }
+
+      const updated = await this.empleadoService.update(userId, updatePayload);
+      return {
+        _id: updated.id.toString(),
+        id: updated.id,
+        name: `${updated.nombre} ${updated.apellido}`,
+        fullName: `${updated.nombre} ${updated.apellido}`,
+        email: updated.email,
+        role: updated.rol.toLowerCase(),
+        isActive: updated.estado === 'activo',
+        idEmpleado: updated.id,
+        idHotel: updated.id_hotel,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
+    } catch {
+      const cliente = await this.clienteService.findOne(userId);
+      const parts = (data.fullName || `${cliente.nombre} ${cliente.apellido}`).trim().split(' ');
+      const nombre = parts[0];
+      const apellido = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+      const updated = await this.clienteService.update(userId, { nombre, apellido });
+      return {
+        _id: updated.id.toString(),
+        id: updated.id,
+        name: `${updated.nombre} ${updated.apellido}`,
+        fullName: `${updated.nombre} ${updated.apellido}`,
+        email: updated.email,
+        role: 'cliente',
+        isActive: true,
+        idCliente: updated.id,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
+    }
+  }
 }

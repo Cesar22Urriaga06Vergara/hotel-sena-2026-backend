@@ -11,6 +11,7 @@ import {
   Query,
   Request,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -27,11 +28,60 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RoomIncident } from './entities/room-incident.entity';
+import {
+  ESTADOS_INCIDENCIA,
+  ETIQUETAS_INCIDENCIA,
+  TIPOS_INCIDENCIA,
+  AREAS_INCIDENCIA,
+  TRANSICIONES_INCIDENCIA,
+} from '../common/constants/estados.constants';
 
 @ApiTags('Incidencias (Room Incidents)')
 @Controller('incidencias')
 export class IncidenciaController {
   constructor(private readonly incidenciaService: RoomIncidentService) {}
+
+  private filtrarIncidenciasPorHotel(incidencias: RoomIncident[], req: any): RoomIncident[] {
+    const userRole = req?.user?.rol;
+
+    if (userRole === 'superadmin') {
+      return incidencias;
+    }
+
+    const userIdHotel = req?.user?.idHotel;
+    if (!userIdHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    return incidencias.filter((incidencia) => incidencia.habitacion?.idHotel === userIdHotel);
+  }
+
+  /**
+   * GET /incidencias/catalogo/estados
+   * Catálogo público de estados, tipos y áreas — sin autenticación para uso en formularios
+   */
+  @Get('catalogo/estados')
+  @ApiOperation({ summary: 'Catálogo de estados, tipos y áreas de incidencias' })
+  @ApiResponse({ status: 200, description: 'Catálogo obtenido' })
+  getCatalogoEstados() {
+    const estados = Object.entries(ESTADOS_INCIDENCIA).map(([, valor]) => ({
+      valor,
+      etiqueta: ETIQUETAS_INCIDENCIA[valor],
+      transicionesPermitidas: TRANSICIONES_INCIDENCIA[valor],
+    }));
+
+    const tipos = Object.entries(TIPOS_INCIDENCIA).map(([valor, etiqueta]) => ({
+      valor,
+      etiqueta,
+    }));
+
+    const areas = Object.entries(AREAS_INCIDENCIA).map(([valor, etiqueta]) => ({
+      valor,
+      etiqueta,
+    }));
+
+    return { estados, tipos, areas };
+  }
 
   /**
    * POST /incidencias
@@ -100,8 +150,9 @@ export class IncidenciaController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener incidencias activas' })
   @ApiResponse({ status: 200, description: 'Incidencias activas obtenidas' })
-  async obtenerActivas(): Promise<RoomIncident[]> {
-    return this.incidenciaService.obtenerActivas();
+  async obtenerActivas(@Request() req: any): Promise<RoomIncident[]> {
+    const incidencias = await this.incidenciaService.obtenerActivas();
+    return this.filtrarIncidenciasPorHotel(incidencias, req);
   }
 
   /**
@@ -121,11 +172,14 @@ export class IncidenciaController {
     @Param('areaAsignada') areaAsignada: string,
     @Query('estado') estado?: string,
     @Query('prioridad') prioridad?: string,
+    @Request() req?: any,
   ): Promise<RoomIncident[]> {
-    return this.incidenciaService.obtenerPorAreaYHotel(areaAsignada, {
+    const incidencias = await this.incidenciaService.obtenerPorAreaYHotel(areaAsignada, {
       estado,
       prioridad,
     });
+
+    return this.filtrarIncidenciasPorHotel(incidencias, req);
   }
 
   /**
@@ -171,14 +225,17 @@ export class IncidenciaController {
     @Query('prioridad') prioridad?: string,
     @Query('areaAsignada') areaAsignada?: string,
     @Query('esResponsabilidadCliente') esResponsabilidadCliente?: string,
+    @Request() req?: any,
   ): Promise<RoomIncident[]> {
-    return this.incidenciaService.obtenerTodas({
+    const incidencias = await this.incidenciaService.obtenerTodas({
       estado,
       tipo,
       prioridad,
       areaAsignada,
       esResponsabilidadCliente: esResponsabilidadCliente === 'true',
     });
+
+    return this.filtrarIncidenciasPorHotel(incidencias, req);
   }
 
   /**

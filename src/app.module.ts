@@ -24,6 +24,7 @@ import { ImpuestoModule } from './impuesto/impuesto.module';
 import { AdminAccessMiddleware } from './common/middleware/admin-access.middleware';
 import { FolioModule } from './folio/folio.module';
 import { HuespedesModule } from './huespedes/huespedes.module';
+import { SuperadminModule } from './superadmin/superadmin.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { HuespedesModule } from './huespedes/huespedes.module';
     PagoModule,
     FolioModule,
     HuespedesModule,
+    SuperadminModule,
 
   ],
   controllers: [AppController],

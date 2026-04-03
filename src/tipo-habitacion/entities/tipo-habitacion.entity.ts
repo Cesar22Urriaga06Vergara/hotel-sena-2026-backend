@@ -19,6 +19,9 @@ export class TipoHabitacion {
   @Column({ name: 'id_hotel' })
   idHotel: number;
 
+  @Column({ name: 'id_categoria_servicios', nullable: true })
+  idCategoriaServicios: number;
+
   @Column({ name: 'nombre_tipo', unique: true })
   nombreTipo: string;
 

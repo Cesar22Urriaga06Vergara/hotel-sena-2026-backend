@@ -18,6 +18,9 @@ export class Servicio {
   @Column({ name: 'id_hotel' })
   idHotel: number;
 
+  @Column({ name: 'id_categoria_servicios', nullable: true })
+  idCategoriaServicios: number;
+
   @Column({ type: 'varchar', length: 150 })
   nombre: string;
 
