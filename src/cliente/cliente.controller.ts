@@ -58,14 +58,29 @@ export class ClienteController {
 
   /**
    * GET /clientes/:id
-   * Obtener un cliente por ID
+   * Obtener un cliente por ID (protegido)
+   * - Clientes solo ven su propio datos
+   * - Admin/Recepcionista ven clientes de su hotel
+   * - SuperAdmin ve todos
    */
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener un cliente por ID' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'recepcionista', 'superadmin', 'cliente')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener un cliente por ID (protegido)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Cliente encontrado' })
+  @ApiResponse({ status: 403, description: 'No tienes permiso para ver este cliente' })
   @ApiResponse({ status: 404, description: 'Cliente no encontrado' })
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Cliente> {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+  ): Promise<Cliente> {
+    // Cliente solo puede ver su propia información
+    if (req.user.rol === 'cliente' && req.user.idCliente !== id) {
+      throw new ForbiddenException('No tienes permiso para ver este cliente');
+    }
+    
     return await this.clienteService.findOne(id);
   }
 

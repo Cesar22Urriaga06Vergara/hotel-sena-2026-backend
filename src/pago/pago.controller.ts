@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { PagoService } from './pago.service';
 import { CreatePagoDto } from './dto/create-pago.dto';
+import { DevolverPagoDto } from './dto/devolver-pago.dto';
 import { Pago } from './entities/pago.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -97,7 +98,8 @@ export class PagoController {
 
   /**
    * PATCH /pagos/:id/devolver
-   * Devolver un pago
+   * Devolver un pago (FASE 5: Mejorados con auditoría)
+   * Requiere motivo detallado (10-500 caracteres) para cumplimiento tributario
    */
   @Patch(':id/devolver')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -106,14 +108,12 @@ export class PagoController {
   @ApiOperation({ summary: 'Devolver un pago' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Pago devuelto exitosamente' })
+  @ApiResponse({ status: 400, description: 'Pago ya fue devuelto previamente' })
   @ApiResponse({ status: 404, description: 'Pago no encontrado' })
   async devolverPago(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { motivo: string },
+    @Body() dto: DevolverPagoDto,
   ): Promise<Pago> {
-    if (!body.motivo) {
-      throw new BadRequestException('El motivo de devolución es requerido');
-    }
-    return this.pagoService.devolverPago(id, body.motivo);
+    return this.pagoService.devolverPago(id, dto.motivo);
   }
 }

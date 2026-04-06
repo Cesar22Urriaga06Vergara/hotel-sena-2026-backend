@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -28,12 +29,15 @@ import { SuperadminModule } from './superadmin/superadmin.module';
 
 @Module({
   imports: [
-  // Configuración de variables de entorno
+    // Configuración de variables de entorno
     // isGlobal: true hace que ConfigModule esté disponible en toda la app
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Event Emitter para comunicación entre servicios
+    EventEmitterModule.forRoot(),
 
     // Configuración de TypeORM con MySQL
     // useFactory permite inyectar ConfigService para leer variables de entorno

@@ -1,13 +1,7 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-  Inject,
-  forwardRef,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import { EventEmitter2, OnEvent as OnEventDecorator } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { Factura } from './entities/factura.entity';
 import { DetalleFactura } from './entities/detalle-factura.entity';
@@ -20,6 +14,18 @@ import { PedidoItem } from '../servicio/entities/pedido-item.entity';
 import { Servicio } from '../servicio/entities/servicio.entity';
 import { ImpuestoService } from '../impuesto/impuesto.service';
 import { ClienteService } from '../cliente/cliente.service';
+import { HotelService } from '../hotel/hotel.service';
+import { Hotel } from '../hotel/entities/hotel.entity';
+import { CategoriaServicio } from '../categoria-servicios/entities/categoria-servicio.entity';
+import { IntegridadService } from './integridad.service';
+import { ESTADOS_FACTURA, TRANSICIONES_FACTURA, EstadoFactura } from '../common/constants/estados.constants';
+import {
+  PedidoCreiadoEvent,
+  PedidoEstadoCambioEvent,
+  PagoRegistradoEvent,
+  FacturaPagadaEvent,
+  FacturaNulificadaEvent,
+} from '../common/events/factura.events';
 
 @Injectable()
 export class FacturaService {
@@ -34,12 +40,17 @@ export class FacturaService {
     private pedidoItemRepository: Repository<PedidoItem>,
     @InjectRepository(Servicio)
     private servicioRepository: Repository<Servicio>,
+    @InjectRepository(CategoriaServicio)
+    private categoriaServicioRepository: Repository<CategoriaServicio>,
     private dataSource: DataSource,
+    private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => ReservaService))
     private reservaService: ReservaService,
     private impuestoService: ImpuestoService,
     @Inject(forwardRef(() => ClienteService))
     private clienteService: ClienteService,
+    private hotelService: HotelService,
+    private integridadService: IntegridadService,
   ) {}
 
   /**
@@ -225,7 +236,7 @@ export class FacturaService {
 
       const serviciosMap = new Map<number, Servicio>();
       if (idsServicios.size > 0) {
-        const servicios = await this.servicioRepository.findByIds(Array.from(idsServicios));
+        const servicios = await this.servicioRepository.findBy({ id: In(Array.from(idsServicios)) });
         servicios.forEach(s => serviciosMap.set(s.id, s));
       }
 
@@ -259,6 +270,12 @@ export class FacturaService {
       // Obtener tax profile del cliente
       const cliente = await this.clienteService.findOne(reserva.idCliente);
       const taxProfile = cliente?.taxProfile || 'RESIDENT';
+
+      // Cargar nombres de categorías desde la base de datos
+      const categoriasIds = [...new Set(detalles.map(d => Number(d.categoriaServiciosId || 1)))];
+      const categoriasEntities = await this.categoriaServicioRepository.findBy({ id: In(categoriasIds) });
+      const categoriasMap = new Map<number, string>();
+      categoriasEntities.forEach(cat => categoriasMap.set(cat.id, cat.nombre));
 
       // FIX: cálculo tributario por cada línea
       let montoIvaTotal = 0;
@@ -295,7 +312,7 @@ export class FacturaService {
         montoIvaTotal = parseFloat((montoIvaTotal + tax.iva).toFixed(2));
         montoIncTotal = parseFloat((montoIncTotal + tax.inc).toFixed(2));
 
-        const categoria = this.obtenerNombreCategoria(Number(detalle.categoriaServiciosId || 1));
+        const categoria = this.obtenerNombreCategoria(Number(detalle.categoriaServiciosId || 1), categoriasMap);
         if (!desgloseFormateado[categoria]) {
           desgloseFormateado[categoria] = {
             subtotal: 0,
@@ -304,6 +321,9 @@ export class FacturaService {
             total: 0,
           };
         }
+
+        // Guardar nombre de categoría en el detalle para persistencia
+        (detalle as any).categoriaNombre = categoria;
 
         desgloseFormateado[categoria].subtotal = parseFloat(
           (desgloseFormateado[categoria].subtotal + Number(detalle.subtotal || 0)).toFixed(2),
@@ -342,8 +362,8 @@ export class FacturaService {
       factura.montoInc = montoIncTotal;
       factura.porcentajeInc = porcentajeIncAplicado;
       factura.total = total;
-      factura.estadoFactura = 'BORRADOR';
-      factura.estado = 'pendiente';
+      factura.estadoFactura = ESTADOS_FACTURA.BORRADOR; // Usar constante
+      factura.estado = 'pendiente'; // Campo legacy en minúsculas
       factura.observaciones = '';
       factura.fechaEmision = new Date();
       
@@ -368,7 +388,7 @@ export class FacturaService {
           iva: (d as any).montoIva || 0,
           inc: d.montoInc || 0,
           total: d.total,
-          categoria: this.obtenerNombreCategoria(d.categoriaServiciosId || 1),
+          categoria: this.obtenerNombreCategoria(d.categoriaServiciosId || 1, categoriasMap),
         })),
         montos: {
           subtotal: subtotalTotal,
@@ -382,8 +402,14 @@ export class FacturaService {
         fechaEmision: new Date().toISOString(),
       });
       
+      // Obtener datos del hotel desde la base de datos
+      const hotel = await this.hotelService.findOne(reserva.idHotel);
+      if (!hotel) {
+        throw new NotFoundException(`Hotel con ID ${reserva.idHotel} no encontrado`);
+      }
+      
       // Preparar datos XML (simulado para preparación DIAN)
-      factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, { 
+      factura.xmlData = this.construirXmlUBL(numeroFactura, factura.uuid, reserva, detalles, hotel, { 
         subtotal: subtotalTotal,
         porcentajeIva: factura.porcentajeIva || 0,
         montoIva: montoIvaTotal,
@@ -450,11 +476,12 @@ export class FacturaService {
       query = query.where('f.idHotel = :idHotel', { idHotel: filters.idHotel });
     }
 
-    const estadosFacturaValidos = ['BORRADOR', 'EDITABLE', 'EMITIDA', 'PAGADA', 'ANULADA'];
+    // Usar constantes para validación de estados
+    const estadosFacturaValidos = Object.values(ESTADOS_FACTURA);
 
     if (filters?.estadoFactura) {
       const estadoFacturaUpper = String(filters.estadoFactura).toUpperCase();
-      if (estadosFacturaValidos.includes(estadoFacturaUpper)) {
+      if (estadosFacturaValidos.includes(estadoFacturaUpper as EstadoFactura)) {
         if (filters?.idHotel) {
           query = query.andWhere('f.estadoFactura = :estadoFactura', { estadoFactura: estadoFacturaUpper });
         } else {
@@ -467,7 +494,7 @@ export class FacturaService {
       const estadoInput = String(filters.estado);
       const estadoUpper = estadoInput.toUpperCase();
 
-      if (estadosFacturaValidos.includes(estadoUpper)) {
+      if (estadosFacturaValidos.includes(estadoUpper as EstadoFactura)) {
         if (filters?.idHotel || filters?.estadoFactura) {
           query = query.andWhere('f.estadoFactura = :estadoFacturaAlias', { estadoFacturaAlias: estadoUpper });
         } else {
@@ -535,9 +562,14 @@ export class FacturaService {
 
   /**
    * Obtener nombre de categoría por ID
-   * Mapeo: 1=Alojamiento, 2=Cafetería, 3=Minibar, 4=Lavandería, 5=Spa, 6=Room Service
+   * Si se provee un map, lo usa; sino usa fallback hardcoded para compatibilidad
    */
-  private obtenerNombreCategoria(categoriaId: number): string {
+  private obtenerNombreCategoria(categoriaId: number, categoriasMap?: Map<number, string>): string {
+    if (categoriasMap && categoriasMap.has(categoriaId)) {
+      return categoriasMap.get(categoriaId)!;
+    }
+    
+    // Fallback para compatibilidad (deprecated)
     const categorias: Record<number, string> = {
       1: 'Alojamiento',
       2: 'Cafetería',
@@ -581,13 +613,21 @@ export class FacturaService {
   async emitir(id: number, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    // Validar estado actual permitido para emisión
-    const estadosPermitidosParaEmitir = ['BORRADOR', 'EDITABLE'];
+    // Validar estado actual permitido para emisión usando constantes
+    const estadosPermitidosParaEmitir: EstadoFactura[] = [ESTADOS_FACTURA.BORRADOR, ESTADOS_FACTURA.EDITABLE];
     
-    if (!estadosPermitidosParaEmitir.includes(factura.estadoFactura)) {
+    if (!estadosPermitidosParaEmitir.includes(factura.estadoFactura as EstadoFactura)) {
       throw new BadRequestException(
         `No se puede emitir una factura en estado ${factura.estadoFactura}. ` +
         `Estados permitidos: ${estadosPermitidosParaEmitir.join(', ')}`,
+      );
+    }
+
+    // Validar integridad de datos antes de emitir
+    const validacionIntegridad = this.integridadService.validarFacturaParaEmision(factura);
+    if (!validacionIntegridad.valida) {
+      throw new BadRequestException(
+        `La factura no puede ser emitida debido a errores de integridad: ${validacionIntegridad.errores.join(', ')}`,
       );
     }
 
@@ -595,7 +635,8 @@ export class FacturaService {
     const estadoAnterior = factura.estadoFactura;
     
     // Cambiar estado y establecer fechas
-    factura.estadoFactura = 'EMITIDA';
+    // Cambiar estado usando constantes
+    factura.estadoFactura = ESTADOS_FACTURA.EMITIDA;
     factura.estado = 'emitida'; // Mantener compatibilidad con campo antiguo
     factura.fechaEmision = new Date();
     factura.fechaVencimiento = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
@@ -610,9 +651,9 @@ export class FacturaService {
         idFactura: id,
         usuarioId,
         tipoCambio: 'CAMBIO_ESTADO',
-        descripcion: `Factura emitida - Cambio de estado ${estadoAnterior} → EMITIDA`,
+        descripcion: `Factura emitida - Cambio de estado ${estadoAnterior} → ${ESTADOS_FACTURA.EMITIDA}`,
         valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
-        valorNuevo: JSON.stringify({ estadoFactura: 'EMITIDA', fechaEmision: factura.fechaEmision }),
+        valorNuevo: JSON.stringify({ estadoFactura: ESTADOS_FACTURA.EMITIDA, fechaEmision: factura.fechaEmision }),
         fecha: new Date(),
       });
     } catch (error) {
@@ -630,9 +671,9 @@ export class FacturaService {
   async anular(id: number, motivo: string, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    // No se puede anular desde estados finales
-    const estadosFinales = ['PAGADA', 'ANULADA'];
-    if (estadosFinales.includes(factura.estadoFactura)) {
+    // No se puede anular desde estados finales usando constantes
+    const estadosFinales: EstadoFactura[] = [ESTADOS_FACTURA.PAGADA, ESTADOS_FACTURA.ANULADA];
+    if (estadosFinales.includes(factura.estadoFactura as EstadoFactura)) {
       throw new BadRequestException(
         `No se puede anular una factura en estado final: ${factura.estadoFactura}`,
       );
@@ -659,8 +700,8 @@ export class FacturaService {
     // Registrar estado anterior
     const estadoAnterior = factura.estadoFactura;
 
-    // Cambiar estado
-    factura.estadoFactura = 'ANULADA';
+    // Cambiar estado usando constantes
+    factura.estadoFactura = ESTADOS_FACTURA.ANULADA;
     factura.estado = 'anulada'; // Mantener compatibilidad con campo antiguo
     factura.observaciones = `ANULADA [${new Date().toLocaleString('es-CO')}]: ${motivo}`;
 
@@ -674,10 +715,10 @@ export class FacturaService {
         idFactura: id,
         usuarioId,
         tipoCambio: 'CAMBIO_ESTADO',
-        descripcion: `Factura anulada - Cambio de estado ${estadoAnterior} → ANULADA. Motivo: ${motivo}`,
+        descripcion: `Factura anulada - Cambio de estado ${estadoAnterior} → ${ESTADOS_FACTURA.ANULADA}. Motivo: ${motivo}`,
         valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
         valorNuevo: JSON.stringify({ 
-          estadoFactura: 'ANULADA', 
+          estadoFactura: ESTADOS_FACTURA.ANULADA, 
           observaciones: factura.observaciones 
         }),
         fecha: new Date(),
@@ -696,11 +737,11 @@ export class FacturaService {
   async marcarComoPagada(id: number, fechaPago?: Date, usuarioId?: number): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    // Validar que esté en estado EMITIDA
-    if (factura.estadoFactura !== 'EMITIDA') {
+    // Validar que esté en estado EMITIDA usando constantes
+    if (factura.estadoFactura !== ESTADOS_FACTURA.EMITIDA) {
       throw new BadRequestException(
         `No se puede marcar como pagada una factura en estado ${factura.estadoFactura}. ` +
-        `Solo se pueden pagar facturas en estado EMITIDA`,
+        `Solo se pueden pagar facturas en estado ${ESTADOS_FACTURA.EMITIDA}`,
       );
     }
 
@@ -716,8 +757,8 @@ export class FacturaService {
     const estadoAnterior = factura.estadoFactura;
     const fechaPagoReal = fechaPago || new Date();
 
-    // Cambiar estado
-    factura.estadoFactura = 'PAGADA';
+    // Cambiar estado usando constantes
+    factura.estadoFactura = ESTADOS_FACTURA.PAGADA;
     factura.estado = 'pagada'; // Mantener compatibilidad con campo antiguo
     factura.fechaVencimiento = fechaPagoReal;
 
@@ -731,10 +772,10 @@ export class FacturaService {
         idFactura: id,
         usuarioId,
         tipoCambio: 'CAMBIO_ESTADO',
-        descripcion: `Factura marcada como pagada - Cambio de estado ${estadoAnterior} → PAGADA`,
+        descripcion: `Factura marcada como pagada - Cambio de estado ${estadoAnterior} → ${ESTADOS_FACTURA.PAGADA}`,
         valorAnterior: JSON.stringify({ estadoFactura: estadoAnterior }),
         valorNuevo: JSON.stringify({ 
-          estadoFactura: 'PAGADA',
+          estadoFactura: ESTADOS_FACTURA.PAGADA,
           fechaPago: fechaPagoReal,
         }),
         fecha: new Date(),
@@ -768,46 +809,38 @@ export class FacturaService {
   ): Promise<Factura> {
     const factura = await this.findOne(id);
 
-    // Validar transiciones de estado permitidas según máquina de estados
+    // Validar transiciones de estado permitidas según máquina de estados usando constantes
     if (dto.estadoFactura) {
-      const estadoActual = factura.estadoFactura;
-      const estadoNuevo = dto.estadoFactura;
+      const estadoActual = factura.estadoFactura as EstadoFactura;
+      const estadoNuevo = dto.estadoFactura as EstadoFactura;
 
-      const transicionesPermitidas: {
-        [key: string]: string[];
-      } = {
-        BORRADOR: ['EDITABLE', 'EMITIDA', 'ANULADA'],
-        EDITABLE: ['EMITIDA', 'BORRADOR', 'ANULADA'],
-        EMITIDA: ['PAGADA', 'ANULADA'],
-        PAGADA: [], // Estado final
-        ANULADA: [], // Estado final
-      };
+      const transicionesPermitidas = TRANSICIONES_FACTURA[estadoActual] || [];
 
-      if (
-        !transicionesPermitidas[estadoActual]?.includes(estadoNuevo)
-      ) {
+      if (!transicionesPermitidas.includes(estadoNuevo)) {
         throw new BadRequestException(
           `No se puede cambiar de estado ${estadoActual} a ${estadoNuevo}. ` +
-          `Transiciones permitidas: ${transicionesPermitidas[estadoActual]?.join(', ') || 'ninguna'}`,
-        );
-      }
-
-      // Solo permitir cambios de montos en estados BORRADOR y EDITABLE
-      if (
-        (dto.montoIva !== undefined ||
-          dto.montoInc !== undefined ||
-          dto.subtotal !== undefined) &&
-        !['BORRADOR', 'EDITABLE'].includes(estadoActual)
-      ) {
-        throw new BadRequestException(
-          `No se pueden actualizar montos en estado ${estadoActual}. ` +
-          `Solo está permitido en BORRADOR o EDITABLE.`,
+          `Transiciones permitidas: ${transicionesPermitidas.join(', ') || 'ninguna'}`,
         );
       }
     }
 
-    // Validar que no se edite factura pagada o anulada
-    if (['PAGADA', 'ANULADA'].includes(factura.estadoFactura)) {
+    // Solo permitir cambios de montos en estados BORRADOR y EDITABLE usando constantes
+    const estadosEditables: EstadoFactura[] = [ESTADOS_FACTURA.BORRADOR, ESTADOS_FACTURA.EDITABLE];
+    if (
+      (dto.montoIva !== undefined ||
+        dto.montoInc !== undefined ||
+        dto.subtotal !== undefined) &&
+      !estadosEditables.includes(factura.estadoFactura as EstadoFactura)
+    ) {
+      throw new BadRequestException(
+        `No se pueden actualizar montos en estado ${factura.estadoFactura}. ` +
+        `Solo está permitido en ${estadosEditables.join(' o ')}.`,
+      );
+    }
+
+    // Validar que no se edite factura pagada o anulada usando constantes
+    const estadosFinales: EstadoFactura[] = [ESTADOS_FACTURA.PAGADA, ESTADOS_FACTURA.ANULADA];
+    if (estadosFinales.includes(factura.estadoFactura as EstadoFactura)) {
       throw new BadRequestException(
         `No se puede editar una factura en estado ${factura.estadoFactura}`,
       );
@@ -965,6 +998,842 @@ export class FacturaService {
   }
 
   /**
+   * FASE 8: Agregar detalle a una factura existente
+   * Permite agregar servicios, cargos manuales o descuentos después de crear la factura
+   * Validaciones:
+   * - Factura debe estar en estado BORRADOR o EDITABLE
+   * - Cantidad > 0, Precio >= 0
+   * - Si tiene idPedido, validar que la reserva es la misma
+   */
+  async agregarDetalle(
+    idFactura: number,
+    tipoConcepto: string,
+    descripcion: string,
+    cantidad: number,
+    precioUnitario: number,
+    idPedido?: number,
+    idReferencia?: number,
+    categoriaServiciosId?: number,
+    usuarioId?: number,
+  ): Promise<DetalleFactura> {
+    // Validaciones básicas
+    if (cantidad <= 0) {
+      throw new BadRequestException('La cantidad debe ser mayor a 0');
+    }
+    if (precioUnitario < 0) {
+      throw new BadRequestException('El precio unitario no puede ser negativo');
+    }
+
+    // Obtener factura
+    const factura = await this.findOne(idFactura);
+    if (factura.estadoFactura !== 'BORRADOR' && factura.estadoFactura !== 'EDITABLE') {
+      throw new BadRequestException(
+        `No se pueden agregar detalles a una factura en estado ${factura.estadoFactura}`,
+      );
+    }
+
+    // Si hay idPedido, validar que existe y pertenece a misma reserva
+    let pedido: Pedido | null = null;
+    if (idPedido) {
+      pedido = await this.pedidoRepository.findOne({
+        where: { id: idPedido },
+      });
+      if (!pedido) {
+        throw new NotFoundException(`Pedido ${idPedido} no encontrado`);
+      }
+      if (pedido.idReserva !== factura.idReserva) {
+        throw new BadRequestException(
+          'El pedido no pertenece a la misma reserva que la factura',
+        );
+      }
+    }
+
+    // Calcular subtotal y totales
+    const subtotal = cantidad * precioUnitario;
+    const descuento = 0; // Inicializar con 0, se puede actualizar luego
+    
+    // Calcular impuestos
+    let montoIva = 0;
+    let montoInc = 0;
+    let porcentajeInc: number | undefined = undefined;
+
+    if (categoriaServiciosId) {
+      const cliente = await this.clienteService.findOne(factura.idCliente);
+      const taxProfile = cliente?.taxProfile || 'RESIDENT';
+
+      const tax = await this.impuestoService.calculateLineaImpuestos({
+        subtotal,
+        categoriaServiciosId,
+        hotelId: factura.idHotel,
+        taxProfile,
+      });
+
+      const ivaRate = tax.appliedTaxes.find((t) => t.tipoImpuesto === 'IVA');
+      const incRate = tax.appliedTaxes.find((t) => t.tipoImpuesto === 'INC');
+
+      if (ivaRate) {
+        montoIva = (subtotal * Number(ivaRate.tasaPorcentaje)) / 100;
+      }
+      if (incRate) {
+        porcentajeInc = Number(incRate.tasaPorcentaje);
+        montoInc = (subtotal * porcentajeInc) / 100;
+      }
+    }
+
+    const total = subtotal + montoIva + montoInc - descuento;
+
+    // Crear nuevo detalle
+    const detalle = this.detalleFacturaRepository.create({
+      idFactura,
+      idPedido,
+      tipoConcepto,
+      descripcion,
+      cantidad,
+      precioUnitario,
+      subtotal,
+      descuento,
+      total,
+      montoIva,
+      porcentajeInc,
+      montoInc,
+      idReferencia,
+      categoriaServiciosId,
+      estado: 'PENDIENTE',
+    });
+
+    await this.detalleFacturaRepository.save(detalle);
+
+    // Registrar cambio en auditoría
+    try {
+      const DetalleFacturaCambiosRepo = this.dataSource.getRepository('DetalleFacturaCambio');
+      await DetalleFacturaCambiosRepo.save({
+        idDetalle: detalle.id,
+        usuarioId,
+        tipoCambio: 'CREACION',
+        descripcion: `Detalle creado: ${descripcion}. Cantidad: ${cantidad}, Precio: $${precioUnitario}`,
+        valorNuevo: JSON.stringify({
+          tipoConcepto,
+          descripcion,
+          cantidad,
+          precioUnitario,
+          total,
+          estado: 'PENDIENTE',
+        }),
+      });
+    } catch (error) {
+      console.warn('Error registrando detalle en auditoría:', (error as Error).message);
+    }
+
+    // Actualizar total de factura
+    await this.recalcularTotalFactura(idFactura);
+
+    return detalle;
+  }
+
+  /**
+   * FASE 8: Actualizar detalle de factura
+   * Permite modificar cantidad, precio, estado
+   * Validaciones de máquina de estados:
+   * - PENDIENTE → ENTREGADO | CANCELADO
+   * - ENTREGADO → no permite cambios
+   * - CANCELADO → no permite cambios
+   */
+  async actualizarDetalle(
+    idDetalle: number,
+    actualizaciones: {
+      cantidad?: number;
+      precioUnitario?: number;
+      estado?: 'PENDIENTE' | 'ENTREGADO' | 'CANCELADO';
+      descripcion?: string;
+    },
+    usuarioId?: number,
+  ): Promise<DetalleFactura> {
+    const detalle = await this.detalleFacturaRepository.findOne({
+      where: { id: idDetalle },
+      relations: ['factura'],
+    });
+
+    if (!detalle) {
+      throw new NotFoundException(`Detalle ${idDetalle} no encontrado`);
+    }
+
+    // Validar estado actual
+    if (detalle.estado === 'ENTREGADO' || detalle.estado === 'CANCELADO') {
+      throw new BadRequestException(
+        `No se puede actualizar un detalle en estado ${detalle.estado}`,
+      );
+    }
+
+    const valorAnterior = {
+      cantidad: detalle.cantidad,
+      precioUnitario: detalle.precioUnitario,
+      estado: detalle.estado,
+      total: detalle.total,
+    };
+
+    // Validar nuevos valores
+    if (actualizaciones.cantidad !== undefined && actualizaciones.cantidad <= 0) {
+      throw new BadRequestException('La cantidad debe ser mayor a 0');
+    }
+    if (actualizaciones.precioUnitario !== undefined && actualizaciones.precioUnitario < 0) {
+      throw new BadRequestException('El precio unitario no puede ser negativo');
+    }
+
+    // Aplicar cambios
+    if (actualizaciones.cantidad !== undefined) detalle.cantidad = actualizaciones.cantidad;
+    if (actualizaciones.precioUnitario !== undefined) detalle.precioUnitario = actualizaciones.precioUnitario;
+    if (actualizaciones.descripcion !== undefined) detalle.descripcion = actualizaciones.descripcion;
+
+    // Recalcular subtotal y totales
+    const subtotal = detalle.cantidad * detalle.precioUnitario;
+    detalle.subtotal = subtotal;
+    detalle.total = subtotal + detalle.montoIva + detalle.montoInc - detalle.descuento;
+
+    // Actualizar estado si se proporciona
+    if (actualizaciones.estado) {
+      detalle.estado = actualizaciones.estado;
+    }
+
+    await this.detalleFacturaRepository.save(detalle);
+
+    // Registrar cambio en auditoría
+    try {
+      const DetalleFacturaCambiosRepo = this.dataSource.getRepository('DetalleFacturaCambio');
+      let tipoCambio = 'CAMBIO_MONTO';
+      if (actualizaciones.estado) tipoCambio = 'CAMBIO_ESTADO';
+      if (actualizaciones.cantidad) tipoCambio = 'CAMBIO_CANTIDAD';
+
+      await DetalleFacturaCambiosRepo.save({
+        idDetalle,
+        usuarioId,
+        tipoCambio,
+        descripcion: `Detalle actualizado: ${detalle.descripcion}. Nuevos valores: Cantidad=${detalle.cantidad}, Precio=$${detalle.precioUnitario}, Estado=${detalle.estado}`,
+        valorAnterior: JSON.stringify(valorAnterior),
+        valorNuevo: JSON.stringify({
+          cantidad: detalle.cantidad,
+          precioUnitario: detalle.precioUnitario,
+          estado: detalle.estado,
+          total: detalle.total,
+        }),
+      });
+    } catch (error) {
+      console.warn('Error registrando cambio en auditoría:', (error as Error).message);
+    }
+
+    // Actualizar total de factura
+    if (detalle.idFactura) {
+      await this.recalcularTotalFactura(detalle.idFactura);
+    }
+
+    return detalle;
+  }
+
+  /**
+   * FASE 8: Eliminar detalle de factura (soft delete)
+   * Marca el detalle como CANCELADO en lugar de eliminarlo
+   * Mantiene auditoría completa de eliminaciones
+   */
+  async eliminarDetalle(idDetalle: number, motivo?: string, usuarioId?: number): Promise<DetalleFactura> {
+    const detalle = await this.detalleFacturaRepository.findOne({
+      where: { id: idDetalle },
+    });
+
+    if (!detalle) {
+      throw new NotFoundException(`Detalle ${idDetalle} no encontrado`);
+    }
+
+    // No permitir eliminar detalles ya cancelados
+    if (detalle.estado === 'CANCELADO') {
+      throw new BadRequestException('El detalle ya había sido cancelado');
+    }
+
+    const estadoAnterior = detalle.estado;
+    detalle.estado = 'CANCELADO';
+
+    await this.detalleFacturaRepository.save(detalle);
+
+    // Registrar eliminación en auditoría
+    try {
+      const DetalleFacturaCambiosRepo = this.dataSource.getRepository('DetalleFacturaCambio');
+      await DetalleFacturaCambiosRepo.save({
+        idDetalle,
+        usuarioId,
+        tipoCambio: 'ELIMINACION',
+        descripcion: `Detalle cancelado: ${detalle.descripcion}. Motivo: ${motivo || 'No especificado'}`,
+        valorAnterior: JSON.stringify({
+          estado: estadoAnterior,
+          total: detalle.total,
+        }),
+        valorNuevo: JSON.stringify({
+          estado: 'CANCELADO',
+          total: 0,
+        }),
+      });
+    } catch (error) {
+      console.warn('Error registrando eliminación en auditoría:', (error as Error).message);
+    }
+
+    // Actualizar total de factura
+    if (detalle.idFactura) {
+      await this.recalcularTotalFactura(detalle.idFactura);
+    }
+
+    return detalle;
+  }
+
+  /**
+   * FASE 8: Recalcular total de una factura
+   * Se llama automáticamente al agregar, actualizar o eliminar detalles
+   * Recalcula subtotal, IVA e INC globales
+   */
+  private async recalcularTotalFactura(idFactura: number): Promise<void> {
+    try {
+      const factura = await this.findOne(idFactura);
+      const detalles = await this.detalleFacturaRepository.find({
+        where: { idFactura },
+      });
+
+      // Sumar detalles activos (no cancelados)
+      let subtotal = 0;
+      let montoIvaTotal = 0;
+      let montoIncTotal = 0;
+
+      for (const detalle of detalles) {
+        if (detalle.estado !== 'CANCELADO') {
+          subtotal += Number(detalle.subtotal);
+          montoIvaTotal += Number(detalle.montoIva || 0);
+          montoIncTotal += Number(detalle.montoInc || 0);
+        }
+      }
+
+      // Actualizar totales en factura
+      factura.subtotal = subtotal;
+      factura.montoIva = montoIvaTotal;
+      factura.montoInc = montoIncTotal;
+      factura.total = subtotal + montoIvaTotal + montoIncTotal;
+
+      await this.facturaRepository.save(factura);
+    } catch (error) {
+      console.warn('Error recalculando total de factura:', (error as Error).message);
+    }
+  }
+
+  /**
+   * FASE 8: Obtener todos los detalles de una factura
+   * Retorna array de detalles con relaciones cargadas
+   * Útil para endpoint GET /facturas/:id/detalles
+   */
+  async obtenerDetalles(idFactura: number): Promise<DetalleFactura[]> {
+    const factura = await this.findOne(idFactura);
+    if (!factura) {
+      throw new NotFoundException(`Factura ${idFactura} no encontrada`);
+    }
+
+    const detalles = await this.detalleFacturaRepository.find({
+      where: { idFactura },
+      order: { id: 'ASC' },
+    });
+
+    return detalles;
+  }
+
+  /**
+   * FASE 8 P2: Obtener KPIs de facturación para Admin
+   * Retorna métricas: total facturas, ingresos, pendientes, morosidad
+   */
+  async obtenerKpisAdmin(
+    hotelId: number,
+    periodo?: { inicio: Date; fin: Date },
+  ): Promise<any> {
+    const inicio = periodo?.inicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const fin = periodo?.fin || new Date();
+
+    // Query 1: Totales generales
+    const totales = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('COUNT(*)', 'totalFacturas')
+      .addSelect('SUM(f.total)', 'montoTotal')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.createdAt >= :inicio AND f.createdAt <= :fin', { inicio, fin })
+      .getRawOne();
+
+    // Query 2: Facturas por estado
+    const porEstado = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('f.estadoFactura', 'estado')
+      .addSelect('COUNT(*)', 'cantidad')
+      .addSelect('COALESCE(SUM(f.total), 0)', 'monto')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.createdAt >= :inicio AND f.createdAt <= :fin', { inicio, fin })
+      .groupBy('f.estadoFactura')
+      .getRawMany();
+
+    // Query 3: Facturas vencidas (atrasadas > 30 días)
+    const facturasVencidas = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('COUNT(*)', 'cantidad')
+      .addSelect('COALESCE(SUM(f.total), 0)', 'monto')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.estadoFactura IN (:...estados)', { estados: ['EMITIDA', 'PAGADA'] })
+      .andWhere('f.fechaVencimiento < :ahora', { ahora: new Date() })
+      .getRawOne();
+
+    // Query 4: Ingresos por categoría de servicio
+    const ingresosPorCategoria = await this.dataSource.query(`
+      SELECT 
+        cs.nombre,
+        SUM(df.total) as total,
+        COUNT(*) as cantidad
+      FROM detalle_facturas df
+      LEFT JOIN categoria_servicios cs ON df.categoria_servicios_id = cs.id
+      WHERE df.id_factura IN (
+        SELECT id FROM facturas 
+        WHERE id_hotel = ? AND estadoFactura = 'PAGADA'
+        AND createdAt BETWEEN ? AND ?
+      )
+      GROUP BY cs.nombre
+      ORDER BY total DESC
+    `, [hotelId, inicio, fin]);
+
+    // Query 5: Top 10 clientes por monto
+    const topClientes = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('f.idCliente', 'idCliente')
+      .addSelect('c.nombre', 'nombre')
+      .addSelect('SUM(f.total)', 'totalGastado')
+      .addSelect('COUNT(*)', 'cantidadFacturas')
+      .leftJoin('f.cliente', 'c')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.createdAt >= :inicio AND f.createdAt <= :fin', { inicio, fin })
+      .andWhere('f.estadoFactura = :estado', { estado: 'PAGADA' })
+      .groupBy('f.idCliente, c.nombre')
+      .orderBy('totalGastado', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    // Calcular tasa de morosidad
+    const totalPendiente = porEstado.find((e) => e.estado === 'EMITIDA')?.cantidad || 0;
+    const tasaMorosidad = totales.totalFacturas > 0 ? 
+      ((totalPendiente + (facturasVencidas.cantidad || 0)) / totales.totalFacturas) * 100 
+      : 0;
+
+    return {
+      periodo: { inicio, fin },
+      kpis: {
+        totalFacturas: parseInt(totales.totalFacturas || '0'),
+        montoTotal: parseFloat(totales.montoTotal || '0'),
+        porEstado: porEstado.map((e) => ({
+          estado: e.estado,
+          cantidad: parseInt(e.cantidad || '0'),
+          monto: parseFloat(e.monto || '0'),
+        })),
+        tasaMorosidad: parseFloat(tasaMorosidad.toFixed(2)),
+        facturasVencidas: {
+          cantidad: parseInt(facturasVencidas.cantidad || '0'),
+          monto: parseFloat(facturasVencidas.monto || '0'),
+        },
+        ingresosPorCategoria,
+        topClientes: topClientes.map((c) => ({
+          idCliente: c.idCliente,
+          nombre: c.nombre || 'Cliente desconocido',
+          totalGastado: parseFloat(c.totalGastado || '0'),
+          cantidadFacturas: parseInt(c.cantidadFacturas || '0'),
+        })),
+      },
+      resumen: {
+        generadoEn: new Date(),
+        hotelId,
+      },
+    };
+  }
+
+  /**
+   * FASE 8 P2: Obtener KPIs para Recepcionista
+   * Métricas del día: facturas, dinero recibido, pendientes
+   */
+  async obtenerKpisRecepcionista(hotelId: number, fecha?: Date): Promise<any> {
+    const hoy = fecha || new Date();
+    const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const finHoy = new Date(inicioHoy.getTime() + 24 * 60 * 60 * 1000);
+
+    // Facturas creadas hoy
+    const facturasHoy = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('COUNT(*)', 'cantidad')
+      .addSelect('SUM(f.total)', 'monto')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.createdAt >= :inicio AND f.createdAt < :fin', { inicio: inicioHoy, fin: finHoy })
+      .getRawOne();
+
+    // Dinero recibido hoy
+    const pagoHoy = await this.dataSource.query(`
+      SELECT 
+        COUNT(*) as cantidad,
+        SUM(monto) as total
+      FROM pagos
+      WHERE id_factura IN (
+        SELECT id FROM facturas WHERE id_hotel = ?
+      )
+      AND DATE(fecha_pago) = DATE(?)
+    `, [hotelId, hoy]);
+
+    // Facturas pendientes de pago
+    const pendientes = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select('COUNT(*)', 'cantidad')
+      .addSelect('SUM(f.total)', 'monto')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .andWhere('f.estadoFactura IN (:...estados)', { estados: ['EMITIDA', 'PAGADA'] })
+      .getRawOne();
+
+    // Huéspedes sin facturar (reservas activas sin factura)
+    const sinfacturar = await this.dataSource.query(`
+      SELECT 
+        r.id,
+        r.nombreCliente,
+        r.cedulaCliente,
+        DATEDIFF(CURDATE(), r.fechaIngreso) as diasHotel
+      FROM reservas r
+      LEFT JOIN facturas f ON r.id = f.id_reserva
+      WHERE r.id_hotel = ? 
+        AND r.estado NOT IN ('cancelada', 'completada')
+        AND f.id IS NULL
+      LIMIT 20
+    `, [hotelId]);
+
+    return {
+      fecha: hoy,
+      kpis: {
+        facturasHoy: {
+          cantidad: parseInt(facturasHoy.cantidad || '0'),
+          monto: parseFloat(facturasHoy.monto || '0'),
+        },
+        dineroRecibidoHoy: {
+          cantidad: parseInt(pagoHoy[0]?.cantidad || '0'),
+          total: parseFloat(pagoHoy[0]?.total || '0'),
+        },
+        pendientes: {
+          cantidad: parseInt(pendientes.cantidad || '0'),
+          monto: parseFloat(pendientes.monto || '0'),
+        },
+        huespedesSinFacturar: sinfacturar,
+      },
+      resumen: {
+        generadoEn: new Date(),
+        hotelId,
+      },
+    };
+  }
+
+  /**
+   * FASE 8 P2: Obtener reporte de ingresos agreados por categoría
+   * Permite agrupar por: categoría, día, semana, mes
+   */
+  async obtenerReporteIngresos(
+    hotelId: number,
+    groupBy: 'categoria' | 'dia' | 'semana' | 'mes' = 'categoria',
+    periodo?: { inicio: Date; fin: Date },
+  ): Promise<any> {
+    const inicio = periodo?.inicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const fin = periodo?.fin || new Date();
+
+    let groupByClause = 'cs.nombre';
+    let groupByLabel = 'categoria';
+
+    if (groupBy === 'dia') {
+      groupByClause = 'DATE(f.createdAt)';
+      groupByLabel = 'dia';
+    } else if (groupBy === 'semana') {
+      groupByClause = 'YEARWEEK(f.createdAt)';
+      groupByLabel = 'semana';
+    } else if (groupBy === 'mes') {
+      groupByClause = 'DATE_FORMAT(f.createdAt, "%Y-%m")';
+      groupByLabel = 'mes';
+    }
+
+    const ingresos = await this.dataSource.query(`
+      SELECT 
+        ${groupByClause} as ${groupByLabel},
+        COALESCE(cs.nombre, 'Sin categoría') as categoria,
+        SUM(df.total) as ingreso,
+        COUNT(DISTINCT df.id_factura) as facturas,
+        SUM(df.monto_iva) as montoIva,
+        SUM(df.monto_inc) as montoInc
+      FROM detalle_facturas df
+      LEFT JOIN categoria_servicios cs ON df.categoria_servicios_id = cs.id
+      WHERE df.id_factura IN (
+        SELECT id FROM facturas 
+        WHERE id_hotel = ? AND estadoFactura = 'PAGADA'
+        AND createdAt BETWEEN ? AND ?
+      )
+      GROUP BY ${groupByClause}
+      ORDER BY ingreso DESC
+    `, [hotelId, inicio, fin]);
+
+    return {
+      periodo: { inicio, fin },
+      groupBy,
+      datos: ingresos.map((d) => ({
+        ...d,
+        ingreso: parseFloat(d.ingreso || '0'),
+        montoIva: parseFloat(d.montoIva || '0'),
+        montoInc: parseFloat(d.montoInc || '0'),
+      })),
+      resumen: {
+        totalIngresos: ingresos.reduce((sum, d) => sum + parseFloat(d.ingreso || '0'), 0),
+        totalIva: ingresos.reduce((sum, d) => sum + parseFloat(d.montoIva || '0'), 0),
+        totalInc: ingresos.reduce((sum, d) => sum + parseFloat(d.montoInc || '0'), 0),
+      },
+    };
+  }
+
+  /**
+   * FASE 8 P2: Obtener análisis de morosidad
+   * Facturas rechazadas, atrasadas, por vencer
+   */
+  async obtenerAnalisisMorosidad(hotelId: number, diasAtrasados: number = 30): Promise<any> {
+    const ahora = new Date();
+    const fechaLimite = new Date(ahora.getTime() - diasAtrasados * 24 * 60 * 60 * 1000);
+
+    const morosidad = await this.facturaRepository
+      .createQueryBuilder('f')
+      .select(`CASE 
+        WHEN f.fechaVencimiento < CURDATE() AND f.estadoFactura = 'EMITIDA' THEN 'VENCIDA'
+        WHEN f.fechaVencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 'POR_VENCER'
+        WHEN f.estadoFactura = 'PAGADA' THEN 'PAGADA'
+        ELSE 'OTRO'
+      `, 'estado')
+      .addSelect('COUNT(*)', 'cantidad')
+      .addSelect('SUM(f.total)', 'monto')
+      .where('f.idHotel = :hotelId', { hotelId })
+      .where('f.estadoFactura IN (:...estados)', { estados: ['EMITIDA', 'PAGADA'] })
+      .groupBy('estado')
+      .getRawMany();
+
+    return {
+      analisis: morosidad.map((m) => ({
+        estado: m.estado,
+        cantidad: parseInt(m.cantidad || '0'),
+        monto: parseFloat(m.monto || '0'),
+      })),
+      resumen: {
+        generadoEn: new Date(),
+        hotelId,
+        diasAtrasados,
+      },
+    };
+  }
+
+  /**
+   * FASE 9: Listener para evento pedido.creado
+   * Cuando se crea un pedido, agregar automáticamente como DetalleFactura
+   */
+  @OnEventDecorator('pedido.creado')
+  async handlePedidoCreado(payload: PedidoCreiadoEvent) {
+    try {
+      // Obtener o crear factura en estado BORRADOR para esta reserva
+      let factura = await this.facturaRepository.findOne({
+        where: { idReserva: payload.idReserva, estadoFactura: 'BORRADOR' },
+      });
+
+      if (!factura) {
+        // Si no existe, crearla
+        const numeroFactura = await this.generarNumeroFactura();
+        factura = this.facturaRepository.create({
+          numeroFactura,
+          idReserva: payload.idReserva,
+          idCliente: payload.idCliente,
+          idHotel: payload.idHotel,
+          estadoFactura: 'BORRADOR',
+          estado: 'borrador',
+          subtotal: 0,
+          total: 0,
+        });
+        await this.facturaRepository.save(factura);
+      }
+
+      // Agregar detalle para este pedido
+      const detalles = payload.items || [];
+      let subtotal = 0;
+      let totalIva = 0;
+
+      for (const item of detalles) {
+        const itemSubtotal = item.cantidad * item.precio;
+        subtotal += itemSubtotal;
+
+        // Crear detalle
+        const detalle = this.detalleFacturaRepository.create({
+          idFactura: factura.id,
+          idPedido: payload.idPedido,
+          tipoConcepto: 'servicio',
+          descripcion: `${item.nombre} (${new Date(payload.createdAt).toLocaleDateString('es-CO')})`,
+          cantidad: item.cantidad,
+          precioUnitario: item.precio,
+          subtotal: itemSubtotal,
+          total: itemSubtotal,
+          estado: 'PENDIENTE',
+        });
+        await this.detalleFacturaRepository.save(detalle);
+      }
+
+      // Actualizar totales de la factura
+      await this.recalcularTotalFactura(factura.id);
+    } catch (error) {
+      console.warn('Error en handlePedidoCreado:', (error as Error).message);
+    }
+  }
+
+  /**
+   * FASE 9: Listener para evento pedido.estado_cambio
+   * Cuando cambia estado de pedido, actualizar DetalleFactura
+   */
+  @OnEventDecorator('pedido.estado_cambio')
+  async handlePedidoEstadoCambio(payload: PedidoEstadoCambioEvent) {
+    try {
+      // Si el pedido fue entregado, marcar detalles como ENTREGADO
+      if (payload.estadoNuevo === 'entregado' && payload.estadoAnterior !== 'entregado') {
+        const detalles = await this.detalleFacturaRepository.find({
+          where: { idPedido: payload.idPedido },
+        });
+
+        for (const detalle of detalles) {
+          if (detalle.estado !== 'CANCELADO') {
+            detalle.estado = 'ENTREGADO';
+            await this.detalleFacturaRepository.save(detalle);
+
+            // Registrar cambio en auditoría
+            try {
+              const DetalleFacturaCambiosRepo = this.dataSource.getRepository('DetalleFacturaCambio');
+              await DetalleFacturaCambiosRepo.save({
+                idDetalle: detalle.id,
+                tipoCambio: 'CAMBIO_ESTADO',
+                descripcion: `Estado actualizado por evento: Pedido entregado`,
+                valorAnterior: JSON.stringify({ estado: payload.estadoAnterior }),
+                valorNuevo: JSON.stringify({ estado: 'ENTREGADO' }),
+                usuarioId: payload.usuarioId,
+              });
+            } catch (e) {
+              console.warn('Error registrando cambio detalle:', (e as Error).message);
+            }
+          }
+        }
+
+        // Recalcular totales de la factura
+        const factura = await this.facturaRepository.findOne({
+          where: { idReserva: payload.idReserva },
+        });
+        if (factura) {
+          await this.recalcularTotalFactura(factura.id);
+        }
+      }
+
+      // Si pedido fue cancelado, marcar detalles como CANCELADO
+      if (payload.estadoNuevo === 'cancelado' && payload.estadoAnterior !== 'cancelado') {
+        const detalles = await this.detalleFacturaRepository.find({
+          where: { idPedido: payload.idPedido },
+        });
+
+        for (const detalle of detalles) {
+          detalle.estado = 'CANCELADO';
+          await this.detalleFacturaRepository.save(detalle);
+
+          // Registrar cambio
+          try {
+            const DetalleFacturaCambiosRepo = this.dataSource.getRepository('DetalleFacturaCambio');
+            await DetalleFacturaCambiosRepo.save({
+              idDetalle: detalle.id,
+              tipoCambio: 'CAMBIO_ESTADO',
+              descripcion: `Estado actualizado por evento: Pedido cancelado`,
+              valorAnterior: JSON.stringify({ estado: payload.estadoAnterior }),
+              valorNuevo: JSON.stringify({ estado: 'CANCELADO' }),
+              usuarioId: payload.usuarioId,
+            });
+          } catch (e) {
+            console.warn('Error registrando cambio detalle:', (e as Error).message);
+          }
+        }
+
+        // Recalcular totales
+        const factura = await this.facturaRepository.findOne({
+          where: { idReserva: payload.idReserva },
+        });
+        if (factura) {
+          await this.recalcularTotalFactura(factura.id);
+        }
+      }
+    } catch (error) {
+      console.warn('Error en handlePedidoEstadoCambio:', (error as Error).message);
+    }
+  }
+
+  /**
+   * FASE 9: Listener para evento pago.registrado
+   * Cuando se registra un pago, actualizar estado de factura a PAGADA
+   */
+  @OnEventDecorator('pago.registrado')
+  async handlePagoRegistrado(payload: PagoRegistradoEvent) {
+    try {
+      const factura = await this.facturaRepository.findOne({
+        where: { id: payload.idFactura },
+      });
+
+      if (!factura) {
+        console.warn(`Factura ${payload.idFactura} no encontrada para pago`);
+        return;
+      }
+
+      // Si totalPagado >= total, marcar como PAGADA
+      if (payload.totalPagado >= factura.total) {
+        const estadoAnterior = factura.estadoFactura;
+
+        factura.estadoFactura = 'PAGADA';
+        factura.estado = 'pagada';
+        await this.facturaRepository.save(factura);
+
+        // Registrar cambio en auditoría
+        try {
+          const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambios');
+          await FacturaCambiosRepo.save({
+            idFactura: factura.id,
+            tipoCambio: 'CAMBIO_ESTADO',
+            descripcion: `Factura pagada por evento: Pago de $${payload.monto} registrado`,
+            valorAnterior: JSON.stringify({ estado: estadoAnterior }),
+            valorNuevo: JSON.stringify({ estadoFactura: 'PAGADA', estado: 'pagada' }),
+            usuarioId: payload.usuarioId,
+          });
+        } catch (e) {
+          console.warn('Error registrando factura cambio:', (e as Error).message);
+        }
+
+        // Emitir evento factura.pagada para webhooks y notificaciones
+        const cliente = await this.clienteService.findOne(factura.idCliente);
+        const hotel = await this.hotelService.findOne(factura.idHotel);
+
+        this.eventEmitter.emit('factura.pagada', {
+          idFactura: factura.id,
+          numeroFactura: factura.numeroFactura,
+          idCliente: factura.idCliente,
+          idHotel: factura.idHotel,
+          total: factura.total,
+          fechaPago: new Date(),
+          cliente: {
+            id: cliente.id,
+            nombre: cliente.nombre || cliente.apellido || 'Cliente',
+            email: cliente.email,
+          },
+          hotel: {
+            id: hotel.id,
+            nombre: hotel.nombre,
+          },
+          timestamp: new Date(),
+        } as FacturaPagadaEvent);
+      }
+    } catch (error) {
+      console.warn('Error en handlePagoRegistrado:', (error as Error).message);
+    }
+  }
+
+  /**
    * Construir XML en formato UBL 2.1 (simulado para preparación DIAN)
    * Nota: Esta es una simulación. La DIAN requiere firma digital y validación específica.
    */
@@ -973,6 +1842,7 @@ export class FacturaService {
     uuid: string,
     reserva: Reserva,
     detalles: Partial<any>[],
+    hotel: Hotel,
     montos: { subtotal: number; porcentajeIva: number; montoIva: number; total: number },
   ): string {
     const fecha = new Date().toISOString().split('T')[0];
@@ -1026,24 +1896,24 @@ export class FacturaService {
     <cbc:ID>${numeroFormateado}</cbc:ID>
   </cac:OrderReference>
   
-  <!-- PROVEEDOR (Hotel Sena) -->
+  <!-- PROVEEDOR (Hotel) -->
   <cac:AccountingSupplierParty>
     <cac:Party>
-      <cbc:Name>HOTEL SENA 2026</cbc:Name>
+      <cbc:Name>${hotel.nombre}</cbc:Name>
       <cac:PartyIdentification>
-        <cbc:ID schemeID="NIT">9001234567-1</cbc:ID>
+        <cbc:ID schemeID="NIT">${hotel.nit}</cbc:ID>
       </cac:PartyIdentification>
       <cac:PostalAddress>
-        <cbc:StreetName>Carrera 5 No. 26-50</cbc:StreetName>
-        <cbc:CityName>Bogotá</cbc:CityName>
-        <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>
+        <cbc:StreetName>${hotel.direccion || 'N/A'}</cbc:StreetName>
+        <cbc:CityName>${hotel.ciudad || 'N/A'}</cbc:CityName>
+        <cbc:CountrySubentity>${hotel.ciudad || 'N/A'}</cbc:CountrySubentity>
         <cac:Country>
-          <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+          <cbc:IdentificationCode>${hotel.pais || 'CO'}</cbc:IdentificationCode>
         </cac:Country>
       </cac:PostalAddress>
       <cac:PartyTaxScheme>
-        <cbc:RegistrationName>HOTEL SENA 2026</cbc:RegistrationName>
-        <cbc:CompanyID schemeID="NIT">9001234567-1</cbc:CompanyID>
+        <cbc:RegistrationName>${hotel.nombre}</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="NIT">${hotel.nit}</cbc:CompanyID>
         <cbc:TaxTypeCode>01</cbc:TaxTypeCode>
         <cac:TaxScheme>
           <cbc:ID>01</cbc:ID>

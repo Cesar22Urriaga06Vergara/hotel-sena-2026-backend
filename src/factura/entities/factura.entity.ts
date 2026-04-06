@@ -150,6 +150,12 @@ export class Factura {
   @OneToMany('Pago', 'factura')
   pagos: any[];
 
+  @OneToMany('FacturaCambio', 'factura', {
+    cascade: false,
+    eager: false,
+  })
+  cambios?: any[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

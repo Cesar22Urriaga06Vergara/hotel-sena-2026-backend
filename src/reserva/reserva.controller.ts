@@ -26,6 +26,7 @@ import {
 import { ReservaService } from './reserva.service';
 import { CreateReservaDto } from './dto/create-reserva.dto';
 import { UpdateReservaDto } from './dto/update-reserva.dto';
+import { ConfirmarCheckInDto } from './dto/confirmar-checkin.dto';
 import { DisponibilidadQueryDto } from './dto/disponibilidad-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -142,15 +143,20 @@ export class ReservaController {
 
   /**
    * GET /reservas/codigo/:codigo
-   * Obtener una reserva por código de confirmación (PÚBLICA)
+   * Obtener una reserva por código de confirmación (PROTEGIDA)
+   * Previene enumeration attack
    */
   @Get('codigo/:codigoConfirmacion')
-  @ApiOperation({ summary: 'Obtener reserva por código de confirmación' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener reserva por código de confirmación (requiere autenticación)' })
   @ApiParam({ name: 'codigoConfirmacion', type: String })
   @ApiResponse({ status: 200, description: 'Reserva encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
   async findByCodigoConfirmacion(
     @Param('codigoConfirmacion') codigoConfirmacion: string,
+    @Request() req: any,
   ): Promise<Reserva> {
     return await this.reservaService.findByCodigoConfirmacion(codigoConfirmacion);
   }
@@ -503,26 +509,30 @@ export class ReservaController {
 
   /**
    * POST /reservas/:id/checkin
-   * Confirmar check-in (PROTEGIDA)
+   * Confirmar check-in (PROTEGIDA) - FASE 5: Integrado con ConfirmarCheckInDto
    * - Solo Recepcionista
+   * - Valida documento del huésped principal
+   * - Permite customizar número de huéspedes
    */
   @Post(':id/checkin')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('recepcionista')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Confirmar check-in' })
+  @ApiOperation({ summary: 'Confirmar check-in con validaciones mejoradas' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Check-in confirmado exitosamente' })
   @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  @ApiResponse({ status: 400, description: 'Validaciones fallidas' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Acceso denegado' })
   async confirmarCheckin(
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmarCheckInDto,
     @Request() req,
   ): Promise<Reserva> {
-    const reserva = await this.reservaService.findOne(id);
+    const reserva = await this.reservaService.findOne(dto.idReserva);
     if (!reserva) {
-      throw new NotFoundException(`Reserva ${id} no encontrada`);
+      throw new NotFoundException(`Reserva ${dto.idReserva} no encontrada`);
     }
 
     const userRole = req.user.rol;
@@ -538,7 +548,7 @@ export class ReservaController {
       );
     }
 
-    return await this.reservaService.confirmarCheckin(id);
+    return await this.reservaService.confirmarCheckin(dto.idReserva);
   }
 
   /**

@@ -21,6 +21,8 @@ import { AmenidadService } from './amenidad.service';
 import { CreateAmenidadDto } from './dto/create-amenidad.dto';
 import { UpdateAmenidadDto } from './dto/update-amenidad.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Amenidades')
 @ApiBearerAuth()
@@ -31,14 +33,16 @@ export class AmenidadController {
 
   /**
    * POST /amenidades
-   * Crear una nueva amenidad
+   * Crear una nueva amenidad (solo admin/superadmin)
    */
   @Post()
-  @ApiOperation({ summary: 'Crear una nueva amenidad' })
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiOperation({ summary: 'Crear una nueva amenidad (solo admin/superadmin)' })
   @ApiBody({ type: CreateAmenidadDto })
   @ApiResponse({ status: 201, description: 'Amenidad creada exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Solo admin/superadmin pueden crear amenidades' })
   create(@Body() createAmenidadDto: CreateAmenidadDto) {
     return this.amenidadService.create(createAmenidadDto);
   }

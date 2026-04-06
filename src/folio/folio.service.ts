@@ -528,25 +528,42 @@ export class FolioService {
       );
     }
 
-    // Validar que el monto sea suficiente
-    if (pagoDto.monto < folio.total) {
+    // FASE 5: Validar que el monto sea suficiente (usando montoCobrar del nuevo DTO)
+    if (pagoDto.montoCobrar < folio.total) {
       throw new BadRequestException(
-        `Monto insuficiente. Total: $${folio.total.toLocaleString('es-CO')}, Recibido: $${pagoDto.monto.toLocaleString('es-CO')}`,
+        `Monto insuficiente. Total: $${folio.total.toLocaleString('es-CO')}, Recibido: $${pagoDto.montoCobrar.toLocaleString('es-CO')}`,
       );
     }
 
     // Marcar folio como PAGADO
     folio.estadoPago = 'PAGADO';
     folio.fechaCierre = new Date();
+
+    // FASE 5: Persistir información del pago en el folio para trazabilidad
+    folio.idMedioPago = pagoDto.idMedioPago;
+    folio.referenciaPago = pagoDto.referenciaPago;
+    if (!folio.historicosPagos) {
+      folio.historicosPagos = [];
+    }
+    folio.historicosPagos.push({
+      idMedioPago: pagoDto.idMedioPago,
+      monto: pagoDto.montoCobrar,
+      referencia: pagoDto.referenciaPago,
+      fecha: new Date(),
+      cobrador: pagoDto.cobrador,
+    });
+
     const folioActualizado = await this.folioRepository.save(folio);
 
-    // Registrar información del pago
+    // Registrar información del pago (FASE 5: actualizado para nuevo DTO)
     const pago = {
       idFolio: folio.id,
-      monto: pagoDto.monto,
-      vuelto: pagoDto.monto - folio.total,
-      concepto: pagoDto.concepto || 'Pago de folio',
-      medioPago: pagoDto.referencia || 'Efectivo',
+      monto: pagoDto.montoCobrar,
+      vuelto: pagoDto.montoCobrar - folio.total,
+      concepto: pagoDto.observacionesCobro || 'Pago de folio',
+      medioPagoId: pagoDto.idMedioPago,
+      referencia: pagoDto.referenciaPago,
+      cobrador: pagoDto.cobrador,
       fecha: new Date(),
     };
 

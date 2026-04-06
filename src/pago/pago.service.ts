@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Pago } from './entities/pago.entity';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { FacturaService } from '../factura/factura.service';
@@ -17,6 +17,7 @@ export class PagoService {
     private pagoRepository: Repository<Pago>,
     private facturaService: FacturaService,
     private medioPagoService: MedioPagoService,
+    private dataSource: DataSource,
   ) {}
 
   /**
@@ -107,12 +108,47 @@ export class PagoService {
 
     // Recalcular y actualizar estado de la factura según total pagado
     if (totalPagoNuevo >= totalFactura && factura.estado !== 'pagada') {
+      const estadoAnterior = factura.estadoFactura || 'EMITIDA';
+      // FASE 7: Sincronizar AMBOS campos (legacy + nuevo)
       factura.estado = 'pagada';
+      factura.estadoFactura = 'PAGADA';
       await this.facturaService['facturaRepository'].save(factura);
+
+      // FASE 7: Registrar cambio en auditoría
+      try {
+        const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambio');
+        await FacturaCambiosRepo.save({
+          idFactura: dto.idFactura,
+          usuarioId: idEmpleado || null,
+          tipoCambio: 'CAMBIO_ESTADO',
+          descripcion: `Pago aplicado - Factura pagada. Monto: $${dto.monto}. Total pagado: $${totalPagoNuevo}`,
+          valorAnterior: JSON.stringify({ estado: factura.estado, estadoFactura: estadoAnterior }),
+          valorNuevo: JSON.stringify({ estado: 'pagada', estadoFactura: 'PAGADA' }),
+        });
+      } catch (error) {
+        console.warn('Error registrando cambio en auditoría:', error.message);
+      }
     } else if (totalPagoNuevo > 0 && totalPagoNuevo < totalFactura && factura.estado !== 'parcialmente_pagada') {
       // Nuevo: Estado de pago intermedio cuando hay pago parcial
+      const estadoAnterior = factura.estadoFactura || 'EMITIDA';
       factura.estado = 'parcialmente_pagada';
+      factura.estadoFactura = 'PAGADA'; // FASE 7: Marcar como PAGADA (parcial) en nuevo enum
       await this.facturaService['facturaRepository'].save(factura);
+
+      // FASE 7: Registrar cambio en auditoría
+      try {
+        const FacturaCambiosRepo = this.dataSource.getRepository('FacturaCambio');
+        await FacturaCambiosRepo.save({
+          idFactura: dto.idFactura,
+          usuarioId: idEmpleado || null,
+          tipoCambio: 'CAMBIO_ESTADO',
+          descripcion: `Pago parcial aplicado. Monto: $${dto.monto}. Total pagado: $${totalPagoNuevo} de $${totalFactura}`,
+          valorAnterior: JSON.stringify({ estado: factura.estado, estadoFactura: estadoAnterior }),
+          valorNuevo: JSON.stringify({ estado: 'parcialmente_pagada', estadoFactura: 'PAGADA' }),
+        });
+      } catch (error) {
+        console.warn('Error registrando cambio en auditoría:', error.message);
+      }
     }
 
     const pagoGuardado = await this.pagoRepository.findOne({
@@ -171,6 +207,7 @@ export class PagoService {
   /**
    * Devolver un pago (cambiar estado a 'devuelto')
    * Revertir el estado de la factura si es necesario
+   * FASE 5: Validar que no se haya devuelto previamente (solo una devolución por pago)
    */
   async devolverPago(id: number, motivo: string): Promise<Pago> {
     const pago = await this.pagoRepository.findOne({
@@ -180,6 +217,14 @@ export class PagoService {
 
     if (!pago) {
       throw new NotFoundException(`Pago con ID ${id} no encontrado`);
+    }
+
+    // FASE 5: Validar que el pago no haya sido devuelto previamente
+    if (pago.estado === 'devuelto') {
+      throw new BadRequestException(
+        `El pago #${id} ya fue devuelto previamente en ${pago.fechaPago?.toLocaleDateString()}. ` +
+        `No se puede devolver múltiples veces. Motivo anterior: ${pago.observaciones}`,
+      );
     }
 
     // Cambiar estado del pago

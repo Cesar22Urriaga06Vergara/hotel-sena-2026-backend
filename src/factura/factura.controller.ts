@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   ParseIntPipe,
@@ -24,6 +25,8 @@ import {
 import { FacturaService } from './factura.service';
 import { CreateFacturaDto } from './dto/create-factura.dto';
 import { UpdateFacturaDto } from './dto/update-factura.dto';
+import { CreateDetalleFacturaDto } from './dto/create-detalle-factura.dto';
+import { UpdateDetalleFacturaDto } from './dto/update-detalle-factura.dto';
 import { EmitirFacturaDto } from './dto/emitir-factura.dto';
 import { AnularFacturaDto } from './dto/anular-factura.dto';
 import { MarcarPagadaDto } from './dto/marcar-pagada.dto';
@@ -480,6 +483,312 @@ export class FacturaController {
         ultimaCambioFecha: cambios.length > 0 ? cambios[0].fecha : null,
       },
     };
+  }
+
+  /**
+   * GET /facturas/:id/detalles
+   * Obtener todos los detalles de una factura
+   * 
+   * Validación: 
+   * - Usuario debe tener acceso a la factura
+   * - Retorna array de detalles
+   */
+  @Get(':id/detalles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin', 'cliente')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener detalles de una factura' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la factura' })
+  @ApiResponse({ status: 200, description: 'Detalles obtenidos exitosamente' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización para acceder a esta factura' })
+  @ApiResponse({ status: 404, description: 'Factura no encontrada' })
+  async obtenerDetalles(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+  ): Promise<any[]> {
+    const userRole = req.user.rol;
+    const userIdHotel = req.user.idHotel;
+
+    // Validar acceso a la factura primero
+    const factura = await this.facturaService.findOne(id);
+
+    // Cliente: solo su propia factura
+    if (userRole === 'cliente' && factura.idCliente !== req.user.idCliente) {
+      throw new ForbiddenException('No tiene autorización para acceder a esta factura');
+    }
+
+    // Admin: solo facturas de su hotel
+    if (userRole === 'admin' && factura.idHotel !== userIdHotel) {
+      throw new ForbiddenException('No tiene autorización para acceder a esta factura');
+    }
+
+    // Recepcionista: solo facturas de su hotel
+    if (userRole === 'recepcionista' && factura.idHotel !== userIdHotel) {
+      throw new ForbiddenException('No tiene autorización para acceder a esta factura');
+    }
+
+    return this.facturaService.obtenerDetalles(id);
+  }
+
+  /**
+   * POST /facturas/:id/detalles
+   * Agregar nuevo detalle a una factura
+   * 
+   * Validaciones:
+   * - Factura debe estar en BORRADOR/EDITABLE
+   * - Cantidad > 0, Precio >= 0
+   * - Retorna HTTP 201
+   */
+  @Post(':id/detalles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Agregar detalle a una factura' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la factura' })
+  @ApiResponse({ status: 201, description: 'Detalle creado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o factura no editable' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización' })
+  @ApiResponse({ status: 404, description: 'Factura no encontrada' })
+  async agregarDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateDetalleFacturaDto,
+    @Request() req: any,
+  ): Promise<any> {
+    // Admin debe estar asignado a un hotel
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    // Para admins, validar que la factura pertenezca a su hotel
+    if (req.user.rol === 'admin') {
+      const factura = await this.facturaService.findOne(id);
+      if (!factura) {
+        throw new NotFoundException('Factura no encontrada');
+      }
+      if (factura.idHotel !== req.user.idHotel) {
+        throw new ForbiddenException(
+          'No tiene autorización para modificar facturas de otro hotel',
+        );
+      }
+    }
+
+    const usuarioId = req.user.id;
+    return this.facturaService.agregarDetalle(
+      id,
+      dto.tipoConcepto,
+      dto.descripcion,
+      dto.cantidad,
+      dto.precioUnitario,
+      dto.idPedido,
+      dto.idReferencia,
+      dto.categoriaServiciosId,
+      usuarioId,
+    );
+  }
+
+  /**
+   * PATCH /facturas/:id/detalles/:detalleId
+   * Actualizar detalle de una factura
+   * 
+   * Validaciones:
+   * - Detalle debe estar en PENDIENTE
+   * - No permite actualizar detalles ENTREGADOS o CANCELADOS
+   */
+  @Patch(':id/detalles/:detalleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Actualizar detalle de una factura' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la factura' })
+  @ApiParam({ name: 'detalleId', type: Number, description: 'ID del detalle' })
+  @ApiResponse({ status: 200, description: 'Detalle actualizado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Detalle no se puede actualizar o datos inválidos' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización' })
+  @ApiResponse({ status: 404, description: 'Factura o detalle no encontrado' })
+  async actualizarDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Body() dto: UpdateDetalleFacturaDto,
+    @Request() req: any,
+  ): Promise<any> {
+    // Admin debe estar asignado a un hotel
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    // Para admins, validar que la factura pertenezca a su hotel
+    if (req.user.rol === 'admin') {
+      const factura = await this.facturaService.findOne(id);
+      if (!factura) {
+        throw new NotFoundException('Factura no encontrada');
+      }
+      if (factura.idHotel !== req.user.idHotel) {
+        throw new ForbiddenException(
+          'No tiene autorización para modificar facturas de otro hotel',
+        );
+      }
+    }
+
+    const usuarioId = req.user.id;
+    return this.facturaService.actualizarDetalle(detalleId, dto, usuarioId);
+  }
+
+  /**
+   * DELETE /facturas/:id/detalles/:detalleId
+   * Eliminar (cancelar) un detalle de una factura
+   * 
+   * Validaciones:
+   * - Marca el detalle como CANCELADO (no elimina de BD)
+   * - No permite cancelar detalles ya cancelados
+   * Query param 'motivo' es opcional
+   */
+  @Delete(':id/detalles/:detalleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancelar detalle de una factura' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la factura' })
+  @ApiParam({ name: 'detalleId', type: Number, description: 'ID del detalle a cancelar' })
+  @ApiQuery({ name: 'motivo', type: String, required: false, description: 'Motivo de la cancelación' })
+  @ApiResponse({ status: 200, description: 'Detalle cancelado exitosamente' })
+  @ApiResponse({ status: 400, description: 'No se puede cancelar el detalle' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización' })
+  @ApiResponse({ status: 404, description: 'Factura o detalle no encontrado' })
+  async eliminarDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Request() req: any,
+    @Query('motivo') motivo?: string,
+  ): Promise<any> {
+    // Admin debe estar asignado a un hotel
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    // Para admins, validar que la factura pertenezca a su hotel
+    if (req.user.rol === 'admin') {
+      const factura = await this.facturaService.findOne(id);
+      if (!factura) {
+        throw new NotFoundException('Factura no encontrada');
+      }
+      if (factura.idHotel !== req.user.idHotel) {
+        throw new ForbiddenException(
+          'No tiene autorización para modificar facturas de otro hotel',
+        );
+      }
+    }
+
+    const usuarioId = req.user.id;
+    return this.facturaService.eliminarDetalle(detalleId, motivo, usuarioId);
+  }
+
+  /**
+   * GET /facturas/kpis/admin
+   * KPIs de facturación para Admin
+   * Métricas: facturas, ingresos, pendientes, morosidad, top clientes
+   */
+  @Get('kpis/admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener KPIs de facturación (Admin)' })
+  @ApiQuery({ name: 'inicio', type: String, required: false, description: 'Fecha inicio (ISO)' })
+  @ApiQuery({ name: 'fin', type: String, required: false, description: 'Fecha fin (ISO)' })
+  @ApiResponse({ status: 200, description: 'KPIs obtenidos exitosamente' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización' })
+  async obtenerKpisAdmin(
+    @Request() req: any,
+    @Query('inicio') inicio?: string,
+    @Query('fin') fin?: string,
+  ): Promise<any> {
+    // Admin debe estar asignado a un hotel
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    const hotelId = req.user.idHotel; // Para admin, su hotel. Para superadmin, se ignora
+    const periodo = inicio && fin ? { inicio: new Date(inicio), fin: new Date(fin) } : undefined;
+
+    return this.facturaService.obtenerKpisAdmin(hotelId, periodo);
+  }
+
+  /**
+   * GET /facturas/kpis/recepcionista
+   * KPIs para Recepcionista (métricas del día)
+   */
+  @Get('kpis/recepcionista')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('recepcionista', 'admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener KPIs de recepción (día actual)' })
+  @ApiQuery({ name: 'fecha', type: String, required: false, description: 'Fecha específica (ISO)' })
+  @ApiResponse({ status: 200, description: 'KPIs obtenidos exitosamente' })
+  @ApiResponse({ status: 403, description: 'No tiene autorización' })
+  async obtenerKpisRecepcionista(
+    @Request() req: any,
+    @Query('fecha') fecha?: string,
+  ): Promise<any> {
+    // Para admin, validar su hotel
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    const hotelId = req.user.rol === 'admin' ? req.user.idHotel : req.user.idHotel;
+    const fechaConsulta = fecha ? new Date(fecha) : undefined;
+
+    return this.facturaService.obtenerKpisRecepcionista(hotelId, fechaConsulta);
+  }
+
+  /**
+   * GET /facturas/reportes/ingresos
+   * Reporte de ingresos por categoría, día, semana o mes
+   */
+  @Get('reportes/ingresos')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener reporte de ingresos' })
+  @ApiQuery({ name: 'groupBy', type: String, enum: ['categoria', 'dia', 'semana', 'mes'], default: 'categoria' })
+  @ApiQuery({ name: 'inicio', type: String, required: false })
+  @ApiQuery({ name: 'fin', type: String, required: false })
+  @ApiResponse({ status: 200, description: 'Reporte obtenido exitosamente' })
+  async obtenerReporteIngresos(
+    @Request() req: any,
+    @Query('groupBy') groupBy: 'categoria' | 'dia' | 'semana' | 'mes' = 'categoria',
+    @Query('inicio') inicio?: string,
+    @Query('fin') fin?: string,
+  ): Promise<any> {
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    const hotelId = req.user.idHotel;
+    const periodo = inicio && fin ? { inicio: new Date(inicio), fin: new Date(fin) } : undefined;
+
+    return this.facturaService.obtenerReporteIngresos(hotelId, groupBy, periodo);
+  }
+
+  /**
+   * GET /facturas/reportes/morosidad
+   * Análisis de facturas vencidas, pendientes, etc.
+   */
+  @Get('reportes/morosidad')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superadmin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener análisis de morosidad' })
+  @ApiQuery({ name: 'diasAtrasados', type: Number, default: 30 })
+  @ApiResponse({ status: 200, description: 'Análisis obtenido exitosamente' })
+  async obtenerAnalisisMorosidad(
+    @Request() req: any,
+    @Query('diasAtrasados') diasAtrasados: number = 30,
+  ): Promise<any> {
+    if (req.user.rol === 'admin' && !req.user.idHotel) {
+      throw new BadRequestException('Usuario debe estar asignado a un hotel');
+    }
+
+    const hotelId = req.user.idHotel;
+    return this.facturaService.obtenerAnalisisMorosidad(hotelId, diasAtrasados);
   }
 }
 

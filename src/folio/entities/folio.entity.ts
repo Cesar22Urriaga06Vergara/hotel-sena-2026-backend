@@ -59,6 +59,15 @@ export class Folio {
   @Column({ type: 'int', nullable: true })
   registradoPor: number; // ID del recepcionista que abrió el folio
 
+  @Column({ type: 'int', nullable: true })
+  idMedioPago?: number; // FASE 5: Trazabilidad del medio de pago usado
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  referenciaPago?: string; // FASE 5: Referencia de transacción
+
+  @Column({ type: 'json', nullable: true })
+  historicosPagos?: Array<{ idMedioPago: number; monto: number; referencia?: string; fecha: Date; cobrador?: string; }>;
+
   @ManyToOne(() => Habitacion, { eager: true })
   @JoinColumn({ name: 'idHabitacion' })
   habitacion: Habitacion;

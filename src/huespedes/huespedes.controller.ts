@@ -63,15 +63,27 @@ export class HuespedesController {
 
   /**
    * GET /huespedes/:id
-   * Obtener datos de un huésped
+   * Obtener datos de un huésped (protegido)
    * Alias de GET /clientes/:id
    */
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener datos de un huésped' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'recepcionista', 'superadmin', 'cliente')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener datos de un huésped (protegido)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Huésped encontrado' })
+  @ApiResponse({ status: 403, description: 'No tienes permiso para ver este huésped' })
   @ApiResponse({ status: 404, description: 'Huésped no encontrado' })
-  async obtenerHuesped(@Param('id', ParseIntPipe) id: number): Promise<Cliente> {
+  async obtenerHuesped(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+  ): Promise<Cliente> {
+    // Cliente solo puede ver su propia información
+    if (req.user.rol === 'cliente' && req.user.idCliente !== id) {
+      throw new ForbiddenException('No tienes permiso para ver este huésped');
+    }
+    
     return await this.clienteService.findOne(id);
   }
 

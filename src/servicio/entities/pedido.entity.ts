@@ -48,6 +48,9 @@ export class Pedido {
   @Column({ name: 'id_empleado_atiende', nullable: true })
   idEmpleadoAtiende: number;
 
+  @Column({ name: 'fecha_entrega', type: 'datetime', nullable: true })
+  fechaEntrega?: Date;
+
   @Column({ name: 'total_pedido', type: 'decimal', precision: 12, scale: 2, default: 0 })
   totalPedido: number;
 
@@ -67,4 +70,7 @@ export class Pedido {
 
   @OneToMany('PedidoItem', 'pedido', { cascade: true })
   items: any[];
+
+  @OneToMany('PedidoCambio', 'pedido', { cascade: true, eager: false })
+  cambios?: any[];
 }

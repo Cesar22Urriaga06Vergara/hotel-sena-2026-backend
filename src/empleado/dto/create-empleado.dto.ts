@@ -10,6 +10,11 @@ export const ROLES_EMPLEADO = [
   'lavanderia',
   'spa',
   'room_service',
+  'minibar',
+  'transporte',
+  'tours',
+  'eventos',
+  'mantenimiento',
 ] as const;
 export type RolEmpleado = typeof ROLES_EMPLEADO[number];
 

@@ -66,4 +66,14 @@ export class CreateServicioDto {
   @IsBoolean()
   @IsOptional()
   disponibleRecogida?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Indica si es bebida alcohólica (requiere mayor de 21 años para crear pedido)',
+    default: false,
+  })
+  @Type(() => Boolean)
+  @IsBoolean()
+  @IsOptional()
+  esAlcoholico?: boolean;
 }

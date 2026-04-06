@@ -29,19 +29,8 @@ export class AgregarCargoDto {
   categoria: 'SERVICIO' | 'ADICIONAL' | 'INCIDENCIA' | 'OTRO';
 }
 
-export class CobrarFolioDto {
-  @IsNumber()
-  @IsNotEmpty()
-  monto: number;
-
-  @IsString()
-  @IsOptional()
-  concepto?: string;
-
-  @IsString()
-  @IsOptional()
-  referencia?: string;
-}
+// FASE 5: Importar del nuevo archivo de operaciones para trazabilidad mejorada
+export { CobrarFolioDto, CerrarFolioDto } from './folio-operaciones.dto';
 
 export class EliminarCargoDto {
   @IsString()

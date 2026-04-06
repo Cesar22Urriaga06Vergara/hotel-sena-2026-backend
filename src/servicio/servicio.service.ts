@@ -4,10 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Servicio } from './entities/servicio.entity';
 import { Pedido } from './entities/pedido.entity';
 import { PedidoItem } from './entities/pedido-item.entity';
+import { PedidoCambio } from './entities/pedido-cambio.entity';
 import { Reserva } from '../reserva/entities/reserva.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { CreateServicioDto } from './dto/create-servicio.dto';
@@ -33,6 +34,8 @@ export class ServicioService {
     private pedidoRepository: Repository<Pedido>,
     @InjectRepository(PedidoItem)
     private pedidoItemRepository: Repository<PedidoItem>,
+    @InjectRepository(PedidoCambio)
+    private pedidoCambioRepository: Repository<PedidoCambio>,
     @InjectRepository(Reserva)
     private reservaRepository: Repository<Reserva>,
     @InjectRepository(Cliente)
@@ -150,7 +153,7 @@ export class ServicioService {
 
     // Obtener todos los servicios del pedido
     const idsServicios = dto.items.map((item) => item.idServicio);
-    const servicios = await this.servicioRepository.findByIds(idsServicios);
+    const servicios = await this.servicioRepository.findBy({ id: In(idsServicios) });
 
     if (servicios.length !== idsServicios.length) {
       throw new BadRequestException('Uno o más servicios no existen');
@@ -301,8 +304,54 @@ export class ServicioService {
       pedido.notaEmpleado = dto.notaEmpleado;
     }
 
+    // FASE 6: Registrar entrega si estado es 'entregado'
+    if (estadoNuevo === 'entregado') {
+      pedido.fechaEntrega = new Date();
+    }
+
     await this.pedidoRepository.save(pedido);
+
+    // FASE 6: Registrar cambio de estado en auditoría
+    try {
+      await this.registrarCambioPedido(
+        idPedido,
+        estadoActual,
+        estadoNuevo,
+        idEmpleado,
+        dto.notaEmpleado,
+      );
+    } catch (error) {
+      console.warn('Error registrando cambio en auditoría:', error.message);
+      // No bloquear operación principal si falla auditoría
+    }
+
     return await this.obtenerPedido(idPedido);
+  }
+
+  /**
+   * FASE 6: Registrar cambio de estado en tabla pedido_cambios
+   * Proporciona auditoría completa de transiciones
+   */
+  private async registrarCambioPedido(
+    idPedido: number,
+    estadoAnterior: string,
+    estadoNuevo: string,
+    usuarioId: number,
+    razonCambio?: string,
+  ): Promise<void> {
+    try {
+      const cambio = this.pedidoCambioRepository.create({
+        idPedido,
+        estadoAnterior,
+        estadoNuevo,
+        usuarioId,
+        razonCambio,
+      });
+      await this.pedidoCambioRepository.save(cambio);
+    } catch (error) {
+      // Log solo, no bloquear
+      console.warn(`Error al registrar cambio de pedido #${idPedido}:`, error);
+    }
   }
 
   async obtenerPedidosPorCategoria(
