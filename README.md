@@ -1,98 +1,235 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Hotel Sena 2026 - Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<div align="center">
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Backend REST API** para el sistema de gestión hotelera integral Hotel Sena 2026.
 
-## Description
+Construido con **NestJS**, **TypeORM**, **MySQL** y autenticación con **Passport**.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+[![Node.js](https://img.shields.io/badge/node.js-v18+-brightgreen)](https://nodejs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-11.0-red)](https://nestjs.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0+-blue)](https://www.mysql.com/)
+[![License](https://img.shields.io/badge/license-UNLICENSED-red)](#license)
 
-## Project setup
+</div>
 
+---
+
+## 📋 Descripción
+
+API REST completa para la gestión integral de un hotel, incluyendo:
+
+- 👥 **Gestión de Usuarios y Roles** con RBAC (Control de Acceso Basado en Roles)
+- 🏨 **Administración de Hoteles** y Categorías
+- 📅 **Sistema de Reservas** y Check-in/Check-out
+- 💰 **Facturación** y Gestión de Pagos
+- 📊 **Reportes y KPIs** en tiempo real
+- 📸 **Gestión de Multimedia** con Cloudinary
+- 🔐 **Autenticación OAuth2** con Google
+- 📄 **Generación de Reportes** en Excel y PDF
+
+---
+
+## 🚀 Requisitos Previos
+
+- **Node.js** v18+ 
+- **npm** o **yarn**
+- **MySQL** 8.0+
+- **Variables de entorno** configuradas (`.env`)
+
+---
+
+## 📦 Instalación
+
+1. **Clonar el repositorio**
+   ```bash
+   git clone <repository-url>
+   cd "Hotel Sena 2026"
+   ```
+
+2. **Instalar dependencias**
+   ```bash
+   npm install
+   ```
+
+3. **Configurar variables de entorno**
+   ```bash
+   cp .env.example .env
+   ```
+   Editar `.env` con las credenciales de base de datos y servicios externos.
+
+4. **Ejecutar migraciones de base de datos**
+   ```bash
+   npm run typeorm migration:run
+   ```
+
+---
+
+## 🛠️ Scripts Disponibles
+
+### Desarrollo
 ```bash
-$ npm install
+# Iniciar en modo desarrollo con hot-reload
+npm run start:dev
+
+# Iniciar en modo debug
+npm run start:debug
 ```
 
-## Compile and run the project
-
+### Producción
 ```bash
-# development
-$ npm run start
+# Compilar el proyecto
+npm run build
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# Ejecutar en producción
+npm run start:prod
 ```
 
-## Run tests
-
+### Testing
 ```bash
-# unit tests
-$ npm run test
+# Tests unitarios
+npm run test
 
-# e2e tests
-$ npm run test:e2e
+# Tests con cobertura
+npm run test:cov
 
-# test coverage
-$ npm run test:cov
+# Tests e2e
+npm run test:e2e
+
+# Tests en modo watch
+npm run test:watch
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### Calidad de Código
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Lint y fix automático
+npm run lint
+
+# Formatear código con Prettier
+npm run format
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## 📁 Estructura del Proyecto
 
-Check out a few resources that may come in handy when working with NestJS:
+```
+src/
+├── modules/              # Módulos de la aplicación
+│   ├── auth/            # Autenticación y autorización
+│   ├── usuarios/        # Gestión de usuarios
+│   ├── hoteles/         # Administración de hoteles
+│   ├── reservas/        # Sistema de reservas
+│   ├── facturacion/     # Módulo de facturación
+│   ├── reportes/        # Generación de reportes
+│   └── servicios/       # Servicios auxiliares
+├── common/              # Guardias, interceptores, decoradores comunes
+├── config/              # Configuración de la aplicación
+├── database/            # Configuración de TypeORM
+├── main.ts              # Punto de entrada
+└── app.module.ts        # Módulo raíz
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+test/                    # Tests e2e
+scripts/                 # Scripts de base de datos y migraciones
+```
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 🔑 Variables de Entorno
 
-## Stay in touch
+Crear archivo `.env` con:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```env
+# Base de Datos
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=password
+DB_NAME=hotel_sena
 
-## License
+# JWT
+JWT_SECRET=your_secret_key
+JWT_EXPIRATION=3600
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# Google OAuth
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+
+# Cloudinary
+CLOUDINARY_NAME=your_name
+CLOUDINARY_API_KEY=your_key
+CLOUDINARY_API_SECRET=your_secret
+
+# Puerto
+PORT=3000
+```
+
+---
+
+## 📚 Documentación API
+
+Una vez ejecutando el servidor, accede a la documentación Swagger:
+
+```
+http://localhost:3000/api/docs
+```
+
+---
+
+## 🗄️ Base de Datos
+
+### Migraciones
+```bash
+# Crear nueva migración
+npm run typeorm migration:create
+
+# Ejecutar migraciones
+npm run typeorm migration:run
+
+# Revertir última migración
+npm run typeorm migration:revert
+```
+
+### Seeders
+```bash
+# Ejecutar seeders
+npm run seed
+```
+
+---
+
+## 🔐 Autenticación
+
+- **JWT Bearer Token** para API
+- **Google OAuth2** para usuarios
+- **RBAC** para control de acceso basado en roles
+
+---
+
+## 📊 Características Principales
+
+- ✅ Gestión completa de usuarios con roles
+- ✅ Sistema de reservas con validaciones
+- ✅ Facturación automatizada
+- ✅ Reportes en múltiples formatos
+- ✅ Integración con Cloudinary para imágenes
+- ✅ Swagger/OpenAPI documentación
+- ✅ Validación con class-validator
+- ✅ Manejo de errores centralizado
+
+---
+
+## 🤝 Contribuir
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+---
+
+## 📄 Licencia
+
+Este proyecto es **UNLICENSED** y es propiedad privada.

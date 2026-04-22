@@ -42,7 +42,7 @@ export class PagoService {
     }
 
     // Verificar que el monto es positivo
-    if (dto.monto <= 0) {
+    if (dto.montoCobrar <= 0) {
       throw new BadRequestException('El monto debe ser mayor a cero');
     }
 
@@ -66,12 +66,12 @@ export class PagoService {
       0,
     );
 
-    const totalPagoNuevo = totalPagoPrevio + dto.monto;
+    const totalPagoNuevo = totalPagoPrevio + dto.montoCobrar;
     const totalFactura = Number(factura.total);
 
     if (totalPagoNuevo > totalFactura) {
       throw new BadRequestException(
-        `El monto especificado ($${dto.monto}) sumado a pagos previos ($${totalPagoPrevio}) excede el total de la factura ($${totalFactura}). Máximo permitido: $${totalFactura - totalPagoPrevio}`,
+        `El monto especificado ($${dto.montoCobrar}) sumado a pagos previos ($${totalPagoPrevio}) excede el total de la factura ($${totalFactura}). Máximo permitido: $${totalFactura - totalPagoPrevio}`,
       );
     }
 
@@ -84,20 +84,20 @@ export class PagoService {
         );
       }
 
-      if (dto.montoRecibido < dto.monto) {
+      if (dto.montoRecibido < dto.montoCobrar) {
         throw new BadRequestException(
-          `Efectivo insuficiente. Total: $${dto.monto}, Recibido: $${dto.montoRecibido}`,
+          `Efectivo insuficiente. Total: $${dto.montoCobrar}, Recibido: $${dto.montoRecibido}`,
         );
       }
 
-      cambioDevuelto = Number((dto.montoRecibido - dto.monto).toFixed(2));
+      cambioDevuelto = Number((dto.montoRecibido - dto.montoCobrar).toFixed(2));
     }
 
     // Crear y guardar el pago
     const pagoBd = await this.pagoRepository.save({
       idFactura: dto.idFactura,
       idMedioPago: dto.idMedioPago,
-      monto: dto.monto,
+      monto: dto.montoCobrar,
       montoRecibido: dto.montoRecibido || null,
       cambioDevuelto,
       referenciaPago: dto.referenciaPago || null,
@@ -121,7 +121,7 @@ export class PagoService {
           idFactura: dto.idFactura,
           usuarioId: idEmpleado || null,
           tipoCambio: 'CAMBIO_ESTADO',
-          descripcion: `Pago aplicado - Factura pagada. Monto: $${dto.monto}. Total pagado: $${totalPagoNuevo}`,
+          descripcion: `Pago aplicado - Factura pagada. Monto: $${dto.montoCobrar}. Total pagado: $${totalPagoNuevo}`,
           valorAnterior: JSON.stringify({ estado: factura.estado, estadoFactura: estadoAnterior }),
           valorNuevo: JSON.stringify({ estado: 'pagada', estadoFactura: 'PAGADA' }),
         });
@@ -142,7 +142,7 @@ export class PagoService {
           idFactura: dto.idFactura,
           usuarioId: idEmpleado || null,
           tipoCambio: 'CAMBIO_ESTADO',
-          descripcion: `Pago parcial aplicado. Monto: $${dto.monto}. Total pagado: $${totalPagoNuevo} de $${totalFactura}`,
+          descripcion: `Pago parcial aplicado. Monto: $${dto.montoCobrar}. Total pagado: $${totalPagoNuevo} de $${totalFactura}`,
           valorAnterior: JSON.stringify({ estado: factura.estado, estadoFactura: estadoAnterior }),
           valorNuevo: JSON.stringify({ estado: 'parcialmente_pagada', estadoFactura: 'PAGADA' }),
         });
