@@ -51,7 +51,13 @@ import { SuperadminModule } from './superadmin/superadmin.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
+        // synchronize: false — la estructura se gestiona exclusivamente
+        // mediante migraciones TypeORM (src/migrations/).
+        // Nunca usar synchronize: true en producción.
+        synchronize: false,
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        migrationsRun: true,
+        logging: ['migration'],
       }),
       inject: [ConfigService],
     }),
